@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+    postgres:
+        image: postgres:15-alpine
+        container_name: taskforge-postgres
+        environment:
+            POSTGRES_USER: taskforge_user
+            POSTGRES_PASSWORD: taskforge_password
+            POSTGRES_DB: taskforge_db
+        ports:
+            - "5433:5432"
+        volumes:
+            - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+        healthcheck:
+            test: ["CMD-SHELL", "pg_isready -U taskforge_user -d taskforge_db"]
+            interval: 5s
+            timeout: 5s
+            retries: 5
+        
+    rabbitmq:
+        image: rabbitmq:3-management-alpine
+        container_name: taskforge-rabbitmq
+        environment:
+            RABBITMQ_DEFAULT_USER: taskforge_user
+            RABBITMQ_DEFAULT_PASS: taskforge_password
+        ports:
+            - "5672:5672"
+            - "15672:15672"
+        healthcheck:
+            test: ["CMD", "rabbimq-diagnostics", "-q", "ping"]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+
+networks:
+    default:
+        name: taskforge_network
