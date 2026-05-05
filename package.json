@@ -1,0 +1,17 @@
+{
+    "name": "taskforge-monorepo",
+    "version": "1.0.0",
+    "private": "true",
+    "workspaces": [
+        "packages/*"
+    ],
+    "scripts": {
+        "build": "npm run build --workspaces",
+        "dev:api": "npm run dev --workspace=api",
+        "dev:worker": "npm run dev --workspace=worker"
+    },
+    "devDependencies": {
+        "typescript": "6.0.3",
+        "@types/node": "25.6.0"
+    }
+}
