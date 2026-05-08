@@ -2,5 +2,15 @@
     "name": "@taskforge/api",
     "version": "1.0.0",
     "private": true,
-    "main": "src/index.ts"
+    "main": "src/index.ts",
+    "dependencies": {
+        "dotenv": "^17.4.2",
+        "express": "^5.2.1"
+    },
+    "devDependencies": {
+        "@types/express": "^5.0.6"
+    },
+    "scripts": {
+        "dev": "tsx src/index.ts"
+    }
 }

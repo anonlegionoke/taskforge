@@ -7,11 +7,12 @@
     ],
     "scripts": {
         "build": "npm run build --workspaces",
-        "dev:api": "npm run dev --workspace=api",
-        "dev:worker": "npm run dev --workspace=worker"
+        "dev:api": "npm run dev --workspace=@taskforge/api",
+        "dev:worker": "npm run dev --workspace=@taskforge/worker"
     },
     "devDependencies": {
-        "typescript": "6.0.3",
-        "@types/node": "25.6.0"
+        "@types/node": "25.6.0",
+        "tsx": "^4.21.0",
+        "typescript": "6.0.3"
     }
 }
