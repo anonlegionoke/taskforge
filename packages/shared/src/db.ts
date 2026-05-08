@@ -17,7 +17,7 @@ export const pool = new Pool({
 
 
 pool.on('error', (err, client) => {
-    console.error('Unexpected error on idle database client', err);
+    console.error(`Unexpected error on idle database client ${client}`, err);
 });
 
 export const query = (text: string, params?: any[]) => {
