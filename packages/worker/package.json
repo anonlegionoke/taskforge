@@ -2,5 +2,11 @@
     "name": "@taskforge/worker",
     "version": "1.0.0",
     "private": true,
-    "main": "src/index.ts"
+    "main": "src/index.ts",
+    "dependencies": {
+        "dotenv": "^17.4.2"
+    },
+    "scripts": {
+        "dev": "tsx src/index.ts"
+    }
 }

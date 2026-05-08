@@ -1,7 +1,4 @@
 import { connect, type Channel, type ChannelModel } from 'amqplib';
-import dotenv from 'dotenv';
-
-dotenv.config();
 
 let connection: ChannelModel | null = null;
 let channel: Channel | null = null;
