@@ -42,9 +42,10 @@ const startWorker = async () => {
           return;
         }
 
-        await pool.query(`UPDATE jobs SET status = 'RUNNING' WHERE id = $1`, [
-          jobId,
-        ]);
+        await pool.query(
+          `UPDATE jobs SET status = 'PROCESSING' WHERE id = $1`,
+          [jobId],
+        );
 
         await processJob(jobId, job.payload);
 
