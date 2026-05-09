@@ -6,7 +6,7 @@
         "packages/*"
     ],
     "scripts": {
-        "build": "npm run build --workspaces",
+        "build": "tsc",
         "dev:api": "npm run dev --workspace=@taskforge/api",
         "dev:worker": "npm run dev --workspace=@taskforge/worker"
     },
