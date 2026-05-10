@@ -7,10 +7,9 @@ const processJob = async (jobId: string, payload: any) => {
   console.log(`Processing Job ${jobId}...`);
   await new Promise((resolve) => setTimeout(resolve, 2000));
 
-  if (Math.random() < 0.1) {
+  if (Math.random() < 0.5) {
     throw new Error("Random simulated processing failure!");
   }
-  console.log(`Job ${jobId} completed successfully.`);
 };
 
 const startWorker = async () => {
@@ -42,6 +41,14 @@ const startWorker = async () => {
           return;
         }
 
+        if (job.status !== "PENDING") {
+          console.log(
+            `Job ${jobId} is not PENDING (Status: ${job.status}). Skipping.`,
+          );
+          channel.ack(msg);
+          return;
+        }
+
         await pool.query(
           `UPDATE jobs SET status = 'PROCESSING' WHERE id = $1`,
           [jobId],
@@ -52,17 +59,49 @@ const startWorker = async () => {
         await pool.query(`UPDATE jobs SET status = 'COMPLETED' WHERE id = $1`, [
           jobId,
         ]);
-
+        console.log(`SUCCESS: Job ${jobId} completed Successfully.`);
         channel.ack(msg);
       } catch (error) {
         console.error(
           `Failed to process job ${jobId}:`,
           (error as Error).message,
         );
-        await pool.query(`UPDATE jobs SET status = 'FAILED' WHERE id = $1`, [
-          jobId,
-        ]);
-        channel.nack(msg, false, false);
+
+        const dbResult = await pool.query(
+          "SELECT attempts, max_attempts FROM jobs WHERE id = $1",
+          [jobId],
+        );
+        const jobState = dbResult.rows[0];
+
+        const currentAttempts = jobState.attempts + 1;
+
+        if (currentAttempts < jobState.max_attempts) {
+          console.warn(
+            `Job ${jobId} failed. Retrying... (Attempt ${currentAttempts} of ${jobState.max_attempts})`,
+          );
+
+          await pool.query(
+            `UPDATE jobs SET status = 'PENDING', attempts = $1 WHERE id = $2`,
+            [currentAttempts, jobId],
+          );
+
+          channel.ack(msg);
+          channel.sendToQueue(
+            MAIN_QUEUE,
+            Buffer.from(JSON.stringify({ jobId })),
+            { persistent: true },
+          );
+        } else {
+          console.error(
+            `Job ${jobId} permanently failed after ${jobState.max_attempts} attempts. Sending to DLQ.`,
+          );
+
+          await pool.query(
+            `UPDATE jobs SET status = 'FAILED', attempts = $1 WHERE id = $2`,
+            [currentAttempts, jobId],
+          );
+          channel.nack(msg, false, false);
+        }
       }
     });
   } catch (error) {
