@@ -7,7 +7,8 @@
         "dotenv": "^17.4.2"
     },
     "scripts": {
-        "dev": "tsx src/index.ts"
+        "dev": "tsx src/index.ts",
+        "dev:scheduler": "tsx src/scheduler.ts"
     },
     "devDependencies": {
         "@types/node": "^25.6.2"

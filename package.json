@@ -8,7 +8,8 @@
     "scripts": {
         "build": "tsc",
         "dev:api": "npm run dev --workspace=@taskforge/api",
-        "dev:worker": "npm run dev --workspace=@taskforge/worker"
+        "dev:worker": "npm run dev --workspace=@taskforge/worker",
+        "dev:scheduler": "npm run dev:scheduler --workspace=@taskforge/worker"
     },
     "devDependencies": {
         "@types/node": "25.6.0",
