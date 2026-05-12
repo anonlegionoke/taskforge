@@ -76,21 +76,25 @@ const startWorker = async () => {
         const currentAttempts = jobState.attempts + 1;
 
         if (currentAttempts < jobState.max_attempts) {
+          // Exponential Backoff
+          const delaySeconds = Math.pow(2, currentAttempts) * 5;
+
           console.warn(
-            `Job ${jobId} failed. Retrying... (Attempt ${currentAttempts} of ${jobState.max_attempts})`,
+            `Job ${jobId} failed. Retrying in ${delaySeconds}s... (Attempt ${currentAttempts} of ${jobState.max_attempts})`,
           );
 
           await pool.query(
-            `UPDATE jobs SET status = 'PENDING', attempts = $1 WHERE id = $2`,
+            `UPDATE jobs 
+            SET status = 'PENDING', 
+                attempts = $1,
+                run_at = NOW() + INTERVAL '${delaySeconds} seconds',
+                locked_at = NULL,
+                locked_by = NULL
+            WHERE id = $2`,
             [currentAttempts, jobId],
           );
 
           channel.ack(msg);
-          channel.sendToQueue(
-            MAIN_QUEUE,
-            Buffer.from(JSON.stringify({ jobId })),
-            { persistent: true },
-          );
         } else {
           console.error(
             `Job ${jobId} permanently failed after ${jobState.max_attempts} attempts. Sending to DLQ.`,
