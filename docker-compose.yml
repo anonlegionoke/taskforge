@@ -1,36 +1,81 @@
 services:
-    postgres:
-        image: postgres:15-alpine
-        container_name: taskforge-postgres
-        environment:
-            POSTGRES_USER: taskforge_user
-            POSTGRES_PASSWORD: taskforge_password
-            POSTGRES_DB: taskforge_db
-        ports:
-            - "5433:5432"
-        volumes:
-            - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
-        healthcheck:
-            test: ["CMD-SHELL", "pg_isready -U taskforge_user -d taskforge_db"]
-            interval: 5s
-            timeout: 5s
-            retries: 5
-        
-    rabbitmq:
-        image: rabbitmq:3-management-alpine
-        container_name: taskforge-rabbitmq
-        environment:
-            RABBITMQ_DEFAULT_USER: taskforge_user
-            RABBITMQ_DEFAULT_PASS: taskforge_password
-        ports:
-            - "5672:5672"
-            - "15672:15672"
-        healthcheck:
-            test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
-            interval: 10s
-            timeout: 5s
-            retries: 5
+  postgres:
+    image: postgres:15-alpine
+    container_name: taskforge-postgres
+    environment:
+      POSTGRES_USER: taskforge_user
+      POSTGRES_PASSWORD: taskforge_password
+      POSTGRES_DB: taskforge_db
+    ports:
+      - "5433:5432"
+    volumes:
+      - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U taskforge_user -d taskforge_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: taskforge-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: taskforge_user
+      RABBITMQ_DEFAULT_PASS: taskforge_password
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build: .
+    container_name: taskforge-api
+    command: npm run dev:api
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgres://taskforge_user:taskforge_password@postgres:5432/taskforge_db
+      - RABBITMQ_URL=amqp://taskforge_user:taskforge_password@rabbitmq:5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  worker:
+    build: .
+    container_name: taskforge-worker
+    command: npm run dev:worker
+    environment:
+      - DATABASE_URL=postgres://taskforge_user:taskforge_password@postgres:5432/taskforge_db
+      - RABBITMQ_URL=amqp://taskforge_user:taskforge_password@rabbitmq:5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  scheduler:
+    build: .
+    container_name: taskforge-scheduler
+    command: npm run dev:scheduler
+    environment:
+      - DATABASE_URL=postgres://taskforge_user:taskforge_password@postgres:5432/taskforge_db
+      - RABBITMQ_URL=amqp://taskforge_user:taskforge_password@rabbitmq:5672
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
 
 networks:
-    default:
-        name: taskforge_network
+  default:
+    name: taskforge_network
+
+volumes:
+  pgdata:
