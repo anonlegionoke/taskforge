@@ -2,11 +2,14 @@
 import "./config";
 import express from "express";
 import { pool } from "@taskforge/shared";
+import { Server } from "http";
 
 const app = express();
 app.use(express.json());
 
 const PORT = process.env.API_SERVER_PORT || 3000;
+
+let server: Server;
 
 // POST /jobs
 app.post("/jobs", async (req, res) => {
@@ -16,13 +19,8 @@ app.post("/jobs", async (req, res) => {
     return res.status(400).json({ error: 'Job "type" is required.' });
   }
 
-  if (
-    runAt !== undefined &&
-    (typeof runAt !== "string" || Number.isNaN(Date.parse(runAt)))
-  ) {
-    return res
-      .status(400)
-      .json({ error: 'Job "runAt" must be a valid timestamp.' });
+  if (runAt !== undefined && (typeof runAt !== "string" || Number.isNaN(Date.parse(runAt)))) {
+    return res.status(400).json({ error: 'Job "runAt" must be a valid timestamp.' });
   }
 
   try {
@@ -37,13 +35,11 @@ app.post("/jobs", async (req, res) => {
 
     console.log("SUCCESS: Job scheduled: ", job.id);
 
-    return res
-      .status(202)
-      .json({
-        message: "Job scheduled for processing",
-        jobId: job.id,
-        runAt: job.run_at,
-      });
+    return res.status(202).json({
+      message: "Job scheduled for processing",
+      jobId: job.id,
+      runAt: job.run_at,
+    });
   } catch (error) {
     console.error("Error ingesting job: ", error);
     return res.status(500).json({ error: "Internal Server Error" });
@@ -59,7 +55,7 @@ const startServer = async () => {
     await pool.query("SELECT 1");
     console.log("SUCCESS: DB connected.");
 
-    app.listen(PORT, () => {
+    server = app.listen(PORT, () => {
       console.log("SUCCESS: Taskforge API listening on port:", PORT);
     });
   } catch (error) {
@@ -67,5 +63,35 @@ const startServer = async () => {
     process.exit(1);
   }
 };
+
+/* Graceful shutdown */
+const shutdown = async (signal: string) => {
+  console.log(`Received ${signal}. Starting API shutdown...`);
+
+  if (server) {
+    console.log("Refusing new HTTP requests and draining active ones...");
+
+    server.close(async (error) => {
+      if (error) {
+        console.error("Error while closing express server:", error);
+      }
+
+      try {
+        console.log("Closing Database connections...");
+        await pool.end();
+        console.log("API Shutdown complete!");
+        process.exit(0);
+      } catch (dbError) {
+        console.error("Error closing Postgres pool:", dbError);
+        process.exit(1);
+      }
+    });
+  } else {
+    process.exit(0);
+  }
+};
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
 
 startServer();
