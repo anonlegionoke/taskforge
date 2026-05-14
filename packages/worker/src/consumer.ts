@@ -2,6 +2,7 @@ import { initRabbitMQ, pool } from "@taskforge/shared";
 import { processJob } from "./processor";
 
 const MAIN_QUEUE = "taskforge.queue.jobs";
+const WORKER_ID = `${process.env.HOSTNAME ?? "taskforge-worker"}-${process.pid}`;
 
 let isShuttingDown: boolean = false;
 let activeJobs: number = 0;
@@ -33,34 +34,57 @@ export const startConsumer = async () => {
       }
 
       activeJobs++;
-
-      const { jobId } = JSON.parse(msg.content.toString());
+      let jobId: string | undefined;
 
       try {
-        const dbResult = await pool.query(`SELECT * FROM jobs WHERE id = $1`, [jobId]);
+        const parsedMessage = JSON.parse(msg.content.toString());
+        jobId = parsedMessage.jobId;
+
+        if (!jobId) {
+          throw new Error("RabbitMQ message is missing jobId.");
+        }
+
+        // Atomically check and claim the job
+        const dbResult = await pool.query(
+          `UPDATE jobs
+           SET status = 'PROCESSING',
+               locked_at = NOW(),
+               locked_by = $2,
+               updated_at = NOW()
+           WHERE id = $1
+             AND status = 'PENDING'
+             AND run_at <= NOW()
+           RETURNING *`,
+          [jobId, WORKER_ID],
+        );
         const job = dbResult.rows[0];
 
         if (!job) {
-          console.warn(`Job ${jobId} not found. Skipping.`);
+          console.warn(`Job ${jobId} not found or is no longer PENDING. Skipping.`);
           channel.ack(msg);
-          activeJobs--;
           return;
         }
 
-        if (job.status !== "PENDING") {
-          console.log(`Job ${jobId} is not PENDING (Status: ${job.status}). Skipping.`);
-          channel.ack(msg);
-          activeJobs--;
-          return;
-        }
-
-        await pool.query(`UPDATE jobs SET status = 'PROCESSING' WHERE id = $1`, [jobId]);
         await processJob(jobId, job.payload);
-        await pool.query(`UPDATE jobs SET status = 'COMPLETED' WHERE id = $1`, [jobId]);
+        await pool.query(
+          `UPDATE jobs
+           SET status = 'COMPLETED',
+               locked_at = NULL,
+               locked_by = NULL,
+               updated_at = NOW()
+           WHERE id = $1`,
+          [jobId],
+        );
 
         console.log(`SUCCESS: Job ${jobId} completed Successfully.`);
         channel.ack(msg);
       } catch (error) {
+        if (!jobId) {
+          console.error("Invalid job message. Sending to DLQ:", (error as Error).message);
+          channel.nack(msg, false, false);
+          return;
+        }
+
         console.error(`Failed to process job ${jobId}:`, (error as Error).message);
 
         const dbResult = await pool.query(
@@ -70,6 +94,12 @@ export const startConsumer = async () => {
           [jobId],
         );
         const jobState = dbResult.rows[0];
+
+        if (!jobState) {
+          console.warn(`Job ${jobId} disappeared while handling failure. Dropping message.`);
+          channel.ack(msg);
+          return;
+        }
 
         const currentAttempts = jobState.attempts + 1;
 
@@ -85,11 +115,12 @@ export const startConsumer = async () => {
             `UPDATE jobs 
                 SET status = 'PENDING', 
                     attempts = $1,
-                    run_at = NOW() + INTERVAL '${delaySeconds} seconds',
+                    run_at = NOW() + ($2 * INTERVAL '1 second'),
                     locked_at = NULL,
-                    locked_by = NULL
-                WHERE id = $2`,
-            [currentAttempts, jobId],
+                    locked_by = NULL,
+                    updated_at = NOW()
+                WHERE id = $3`,
+            [currentAttempts, delaySeconds, jobId],
           );
 
           channel.ack(msg);
@@ -98,10 +129,16 @@ export const startConsumer = async () => {
             `Job ${jobId} permanently failed after ${jobState.max_attempts} attempts. Sending to DLQ.`,
           );
 
-          await pool.query(`UPDATE jobs SET status = 'FAILED', attempts = $1 WHERE id = $2`, [
-            currentAttempts,
-            jobId,
-          ]);
+          await pool.query(
+            `UPDATE jobs
+             SET status = 'FAILED',
+                 attempts = $1,
+                 locked_at = NULL,
+                 locked_by = NULL,
+                 updated_at = NOW()
+             WHERE id = $2`,
+            [currentAttempts, jobId],
+          );
           channel.nack(msg, false, false);
         }
       } finally {

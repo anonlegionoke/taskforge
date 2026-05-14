@@ -1,14 +1,14 @@
-import { connect, type Channel, type ChannelModel } from "amqplib";
+import { connect, type ChannelModel, type ConfirmChannel } from "amqplib";
 
 let connection: ChannelModel | null = null;
-let channel: Channel | null = null;
-let initialization: Promise<{ channel: Channel; connection: ChannelModel }> | null = null;
+let channel: ConfirmChannel | null = null;
+let initialization: Promise<{ channel: ConfirmChannel; connection: ChannelModel }> | null = null;
 
 const dlx = "taskforge.dlx";
 const dlq = "taskforge.queue.dlq";
 const mainQueue = "taskforge.queue.jobs";
 
-const clearConnectionState = (conn?: ChannelModel, ch?: Channel) => {
+const clearConnectionState = (conn?: ChannelModel, ch?: ConfirmChannel) => {
   if (!conn || connection === conn) {
     connection = null;
   }
@@ -18,13 +18,13 @@ const clearConnectionState = (conn?: ChannelModel, ch?: Channel) => {
   }
 };
 
-const clearChannelState = (ch: Channel) => {
+const clearChannelState = (ch: ConfirmChannel) => {
   if (channel === ch) {
     channel = null;
   }
 };
 
-export const initRabbitMQ = async (): Promise<{ channel: Channel; connection: ChannelModel }> => {
+export const initRabbitMQ = async (): Promise<{ channel: ConfirmChannel; connection: ChannelModel }> => {
   if (channel && connection) return { channel, connection };
   if (initialization) return initialization;
 
@@ -37,7 +37,7 @@ export const initRabbitMQ = async (): Promise<{ channel: Channel; connection: Ch
   }
 };
 
-const connectRabbitMQ = async (): Promise<{ channel: Channel; connection: ChannelModel }> => {
+const connectRabbitMQ = async (): Promise<{ channel: ConfirmChannel; connection: ChannelModel }> => {
   try {
     const rabbitMQUrl = process.env.RABBITMQ_URL;
 
@@ -46,7 +46,7 @@ const connectRabbitMQ = async (): Promise<{ channel: Channel; connection: Channe
     }
 
     const conn = await connect(rabbitMQUrl);
-    const ch = await conn.createChannel();
+    const ch = await conn.createConfirmChannel();
 
     await ch.prefetch(1);
 
@@ -95,7 +95,7 @@ const connectRabbitMQ = async (): Promise<{ channel: Channel; connection: Channe
   }
 };
 
-export const getChannel = (): Channel => {
+export const getChannel = (): ConfirmChannel => {
   if (!channel) throw new Error("RabbitMQ channel is not initialized");
   return channel;
 };
