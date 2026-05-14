@@ -3,31 +3,72 @@ import { initRabbitMQ, pool } from "@taskforge/shared";
 
 const MAIN_QUEUE = "taskforge.queue.jobs";
 const POLL_INTERVAL_MS = 5000;
+const LOCK_TIMEOUT = "15 minutes";
 
 let isShuttingDown: boolean = false;
-let rabbitChannel: any = null;
+let rabbitChannel: Awaited<ReturnType<typeof initRabbitMQ>>["channel"] | null = null;
 let rabbitConnection: any = null;
 let sweepTimeout: NodeJS.Timeout | null = null;
 
-const sweepJobs = async (channel: any) => {
+const resetStaleProcessingJobs = async () => {
+  const { rows } = await pool.query<{ id: string; status: string }>(
+    `
+      UPDATE jobs
+      SET attempts = attempts + 1,
+          status = CASE
+            WHEN attempts + 1 >= max_attempts THEN 'FAILED'::job_status
+            ELSE 'PENDING'::job_status
+          END,
+          run_at = CASE
+            WHEN attempts + 1 >= max_attempts THEN run_at
+            ELSE NOW()
+          END,
+          locked_at = NULL,
+          locked_by = NULL,
+          updated_at = NOW()
+      WHERE status = 'PROCESSING'
+        AND (locked_at IS NULL OR locked_at < NOW() - $1::interval)
+      RETURNING id, status;
+    `,
+    [LOCK_TIMEOUT],
+  );
+
+  if (rows.length > 0) {
+    const resetCount = rows.filter((row) => row.status === "PENDING").length;
+    const failedCount = rows.filter((row) => row.status === "FAILED").length;
+
+    console.warn(
+      `Recovered ${resetCount} stale PROCESSING job(s); marked ${failedCount} job(s) FAILED.`,
+    );
+  }
+};
+
+const sweepJobs = async (channel: Awaited<ReturnType<typeof initRabbitMQ>>["channel"]) => {
   console.log("Taskforge Scheduler sweeping...");
 
   if (isShuttingDown) return;
 
   try {
-    const { rows } = await pool.query(`
+    await resetStaleProcessingJobs();
+
+    const { rows } = await pool.query<{ id: string }>(
+      `
             UPDATE jobs
-            SET locked_at = NOW(), locked_by = 'taskforge-scheduler'
+            SET locked_at = NOW(),
+                locked_by = 'taskforge-scheduler',
+                updated_at = NOW()
             WHERE id IN (
                 SELECT id FROM jobs
                 WHERE status = 'PENDING'
                     AND run_at <= NOW()
-                    AND locked_at is NULL
+                    AND (locked_at IS NULL OR locked_at < NOW() - $1::interval)
                 LIMIT 50
                 FOR UPDATE SKIP LOCKED
             )
             RETURNING id;
-        `);
+        `,
+      [LOCK_TIMEOUT],
+    );
 
     if (rows.length > 0) {
       console.log(`Scheduler swept ${rows.length} ripe jobs. Pushing to RabbitMQ...`);
@@ -37,6 +78,8 @@ const sweepJobs = async (channel: any) => {
           persistent: true,
         });
       }
+
+      await channel.waitForConfirms();
     }
   } catch (error) {
     console.error("Scheduler sweep failed:", error);

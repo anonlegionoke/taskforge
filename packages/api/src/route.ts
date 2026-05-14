@@ -3,6 +3,43 @@ import { pool } from "@taskforge/shared";
 
 export const jobRouter = Router();
 
+// GET "/jobs/stats"
+jobRouter.get("/stats", async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT status, COUNT(*)::int as count
+      FROM jobs
+      GROUP BY status
+    `);
+
+    const stats = { PENDING: 0, PROCESSING: 0, RUNNING: 0, COMPLETED: 0, FAILED: 0 };
+    rows.forEach((row) => {
+      stats[row.status as keyof typeof stats] = row.count;
+    });
+
+    return res.status(200).json(stats);
+  } catch (error) {
+    console.error("Error fetching stats:", error);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// GET "/jobs"
+jobRouter.get("/", async (req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT *
+      FROM jobs
+      ORDER BY updated_at DESC, created_at DESC
+      LIMIT 100
+    `);
+    return res.status(200).json(rows);
+  } catch (error) {
+    console.error("Error fetching jobs:", error);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 // POST "/jobs"
 jobRouter.post("/", async (req, res) => {
   const { type, payload, runAt } = req.body;
@@ -12,13 +49,15 @@ jobRouter.post("/", async (req, res) => {
   }
 
   if (runAt !== undefined && (typeof runAt !== "string" || Number.isNaN(Date.parse(runAt)))) {
-    return res.status(400).json({ error: 'Job "runAt" must be a valid timestamp.' });
+    return res
+      .status(400)
+      .json({ error: 'Job "runAt" must be a valid timestamp.' });
   }
 
   try {
     const jobResult = await pool.query<{ id: string; run_at: string }>(
       `INSERT INTO jobs (type, payload, status, run_at)
-        VALUES($1, $2, "PENDING", COALESCE($3::timestampz, NOW()))
+        VALUES($1, $2, 'PENDING', COALESCE($3::timestamptz, NOW()))
         RETURNING id, run_at   
         `,
       [type, payload ?? {}, runAt ?? null],
