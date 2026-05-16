@@ -1,4 +1,6 @@
-CREATE TYPE job_status AS ENUM ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED');
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+CREATE TYPE job_status AS ENUM ('PENDING', 'PROCESSING', 'RUNNING', 'COMPLETED', 'FAILED');
 
 -- Jobs table
 CREATE TABLE jobs (
@@ -32,5 +34,20 @@ CREATE TABLE job_logs (
 );
 
 CREATE INDEX idx_jobs_status_run_at ON jobs(status, run_at);
+CREATE INDEX idx_jobs_status_run_at_created_at ON jobs(status, run_at, created_at);
+CREATE INDEX idx_jobs_status_locked_at ON jobs(status, locked_at);
 
 CREATE INDEX idx_job_logs_job_id ON job_logs(job_id);
+
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER jobs_set_updated_at
+BEFORE UPDATE ON jobs
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();

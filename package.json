@@ -6,7 +6,7 @@
         "packages/*"
     ],
     "scripts": {
-        "build": "tsc",
+        "build": "tsc && npm run build --workspace=frontend",
         "dev:api": "npm run dev --workspace=@taskforge/api",
         "dev:worker": "npm run dev --workspace=@taskforge/worker",
         "dev:scheduler": "npm run dev:scheduler --workspace=@taskforge/worker"

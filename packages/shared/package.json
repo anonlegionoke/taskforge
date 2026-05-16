@@ -13,7 +13,7 @@
         "@types/pg": "^8.20.0"
     },
     "scripts": {
-        "migrate:create": "NODE_OPTIONS='--import tsx' node-pg-migrate -m src/migrations -j ts create",
-        "migrate:up": "NODE_OPTIONS='--import tsx' node-pg-migrate -m src/migrations -j ts up"
+        "migrate:create": "node-pg-migrate --tsx --envPath ../../.env -m src/migrations -j ts create",
+        "migrate:up": "node-pg-migrate --tsx --envPath ../../.env -m src/migrations -j ts up"
     }
 }
