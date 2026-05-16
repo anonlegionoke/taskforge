@@ -10,8 +10,14 @@
         "outDir": "dist",
         "rootDir": "."
     },
+    "include": [
+        "packages/api/src/**/*.ts",
+        "packages/worker/src/**/*.ts",
+        "packages/shared/src/**/*.ts"
+    ],
     "exclude": [
         "node_modules",
-        "dist"
+        "dist",
+        "packages/frontend"
     ]
 }

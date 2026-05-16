@@ -1,4 +1,4 @@
-export const processJob = async (jobId: string, payload: any) => {
+export const processJob = async (jobId: string, payload: unknown) => {
   console.log(`Processing Job ${jobId}...`);
 
   await new Promise((resolve) => setTimeout(resolve, 2000));

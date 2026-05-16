@@ -6,6 +6,7 @@ export const transaction = false;
 
 export async function up(pgm: MigrationBuilder): Promise<void> {
   pgm.addTypeValue("job_status", "PROCESSING", { ifNotExists: true });
+  pgm.addTypeValue("job_status", "RUNNING", { ifNotExists: true });
 }
 
 export async function down(pgm: MigrationBuilder): Promise<void> {}

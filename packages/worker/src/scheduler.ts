@@ -1,16 +1,36 @@
 import "./config";
 import { initRabbitMQ, pool } from "@taskforge/shared";
+import os from "node:os";
+import type { ChannelModel } from "amqplib";
 
 const MAIN_QUEUE = "taskforge.queue.jobs";
 const POLL_INTERVAL_MS = 5000;
 const LOCK_TIMEOUT = "15 minutes";
+const SCHEDULER_ID =
+  process.env.SCHEDULER_ID ??
+  process.env.INSTANCE_ID ??
+  `scheduler-${os.hostname()}-${process.pid}`;
 
 let isShuttingDown: boolean = false;
 let rabbitChannel: Awaited<ReturnType<typeof initRabbitMQ>>["channel"] | null = null;
-let rabbitConnection: any = null;
+let rabbitConnection: ChannelModel | null = null;
 let sweepTimeout: NodeJS.Timeout | null = null;
 
-const resetStaleProcessingJobs = async () => {
+const resetStaleLeases = async () => {
+  const staleQueuedJobs = await pool.query<{ id: string }>(
+    `
+      UPDATE jobs
+      SET status = 'PENDING',
+          locked_at = NULL,
+          locked_by = NULL,
+          updated_at = NOW()
+      WHERE status = 'PROCESSING'
+        AND (locked_at IS NULL OR locked_at < NOW() - $1::interval)
+      RETURNING id;
+    `,
+    [LOCK_TIMEOUT],
+  );
+
   const { rows } = await pool.query<{ id: string; status: string }>(
     `
       UPDATE jobs
@@ -26,19 +46,19 @@ const resetStaleProcessingJobs = async () => {
           locked_at = NULL,
           locked_by = NULL,
           updated_at = NOW()
-      WHERE status = 'PROCESSING'
+      WHERE status = 'RUNNING'
         AND (locked_at IS NULL OR locked_at < NOW() - $1::interval)
       RETURNING id, status;
     `,
     [LOCK_TIMEOUT],
   );
 
-  if (rows.length > 0) {
+  if (staleQueuedJobs.rows.length > 0 || rows.length > 0) {
     const resetCount = rows.filter((row) => row.status === "PENDING").length;
     const failedCount = rows.filter((row) => row.status === "FAILED").length;
 
     console.warn(
-      `Recovered ${resetCount} stale PROCESSING job(s); marked ${failedCount} job(s) FAILED.`,
+      `Recovered ${staleQueuedJobs.rows.length} stale queued job(s), ${resetCount} stale running job(s); marked ${failedCount} job(s) FAILED.`,
     );
   }
 };
@@ -49,25 +69,27 @@ const sweepJobs = async (channel: Awaited<ReturnType<typeof initRabbitMQ>>["chan
   if (isShuttingDown) return;
 
   try {
-    await resetStaleProcessingJobs();
+    await resetStaleLeases();
 
     const { rows } = await pool.query<{ id: string }>(
       `
             UPDATE jobs
-            SET locked_at = NOW(),
-                locked_by = 'taskforge-scheduler',
+            SET status = 'PROCESSING',
+                locked_at = NOW(),
+                locked_by = $2,
                 updated_at = NOW()
             WHERE id IN (
                 SELECT id FROM jobs
                 WHERE status = 'PENDING'
                     AND run_at <= NOW()
                     AND (locked_at IS NULL OR locked_at < NOW() - $1::interval)
+                ORDER BY run_at ASC, created_at ASC
                 LIMIT 50
                 FOR UPDATE SKIP LOCKED
             )
             RETURNING id;
         `,
-      [LOCK_TIMEOUT],
+      [LOCK_TIMEOUT, SCHEDULER_ID],
     );
 
     if (rows.length > 0) {
