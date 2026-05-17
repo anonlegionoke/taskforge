@@ -24,6 +24,28 @@ jobRouter.get("/stats", async (req, res) => {
   }
 });
 
+// GET /jobs/:id/logs
+jobRouter.get("/:id/logs", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const { rows } = await pool.query(
+      `
+      SELECT event_type, error_message, worker_id, created_at 
+      FROM job_logs 
+      WHERE job_id = $1 
+      ORDER BY created_at ASC
+    `,
+      [id],
+    );
+
+    return res.status(200).json(rows);
+  } catch (error) {
+    console.error(`Error fetching logs for job ${id}:`, error);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
 // GET "/jobs"
 jobRouter.get("/", async (req, res) => {
   try {
@@ -49,9 +71,7 @@ jobRouter.post("/", async (req, res) => {
   }
 
   if (runAt !== undefined && (typeof runAt !== "string" || Number.isNaN(Date.parse(runAt)))) {
-    return res
-      .status(400)
-      .json({ error: 'Job "runAt" must be a valid timestamp.' });
+    return res.status(400).json({ error: 'Job "runAt" must be a valid timestamp.' });
   }
 
   try {
