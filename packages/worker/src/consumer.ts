@@ -5,9 +5,7 @@ import type { ChannelModel, ConfirmChannel, ConsumeMessage } from "amqplib";
 
 const MAIN_QUEUE = "taskforge.queue.jobs";
 const WORKER_ID =
-  process.env.WORKER_ID ??
-  process.env.INSTANCE_ID ??
-  `worker-${os.hostname()}-${process.pid}`;
+  process.env.WORKER_ID ?? process.env.INSTANCE_ID ?? `worker-${os.hostname()}-${process.pid}`;
 const HEARTBEAT_INTERVAL_MS = Number(process.env.WORKER_HEARTBEAT_INTERVAL_MS ?? 60_000);
 const SHUTDOWN_TIMEOUT_MS = Number(process.env.WORKER_SHUTDOWN_TIMEOUT_MS ?? 30_000);
 
@@ -39,6 +37,21 @@ const startJobHeartbeat = (jobId: string) => {
   timer.unref();
 
   return () => clearInterval(timer);
+};
+
+const logJobEvent = async (
+  jobId: string,
+  eventType: string,
+  errorMessage: string | null = null,
+) => {
+  try {
+    await pool.query(
+      `INSERT INTO job_logs (job_id, worker_id, event_type, error_message) VALUES ($1, $2, $3, $4)`,
+      [jobId, WORKER_ID, eventType, errorMessage],
+    );
+  } catch (err) {
+    console.error(`Failed to write job log for ${jobId}:`, err);
+  }
 };
 
 export const startConsumer = async () => {
@@ -96,6 +109,8 @@ export const startConsumer = async () => {
           return;
         }
 
+        await logJobEvent(jobId, "CLAIMED");
+
         const stopHeartbeat = startJobHeartbeat(jobId);
         try {
           await processJob(jobId, job.payload);
@@ -113,6 +128,8 @@ export const startConsumer = async () => {
           [jobId],
         );
 
+        await logJobEvent(jobId, "SUCCESS");
+
         console.log(`SUCCESS: Job ${jobId} completed Successfully.`);
         channel.ack(msg);
       } catch (error) {
@@ -122,7 +139,11 @@ export const startConsumer = async () => {
           return;
         }
 
-        console.error(`Failed to process job ${jobId}:`, (error as Error).message);
+        const errorMessage = (error as Error).message;
+
+        console.error(`Failed to process job ${jobId}:`, errorMessage);
+
+        await logJobEvent(jobId, "ERROR", errorMessage);
 
         const dbResult = await pool.query(
           `SELECT attempts, max_attempts 
