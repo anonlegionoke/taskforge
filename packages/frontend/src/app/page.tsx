@@ -11,6 +11,7 @@ import {
   ServerCog,
   Activity,
   ListChecks,
+  X,
   type LucideIcon,
 } from "lucide-react";
 
@@ -24,6 +25,18 @@ interface JobRecord {
   status: JobStatus;
   attempts: number;
   max_attempts: number;
+  payload: any;
+  locked_by: string | null;
+  locked_at: string | null;
+  run_at: string;
+  created_at: string;
+  updated_at: string;
+}
+
+interface JobLog {
+  event_type: string;
+  error_message: string | null;
+  worker_id: string;
   created_at: string;
 }
 
@@ -55,11 +68,123 @@ const COLUMNS: JobColumn[] = [
   { id: "FAILED", label: "Failed", icon: XCircle, color: "text-rose-400", bg: "bg-rose-950/30", border: "border-rose-900/50" },
 ];
 
+function JobDetailsModal({ job, onClose }: { job: JobRecord; onClose: () => void }) {
+  const isLive = ["PENDING", "PROCESSING", "RUNNING"].includes(job.status);
+  const { data: logs } = useSWR<JobLog[]>(
+    `${API_URL}/jobs/${job.id}/logs`,
+    fetcher,
+    { refreshInterval: isLive ? 1000 : 0 }
+  );
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-[#14171c] border border-slate-800 rounded-xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
+        
+        <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-[#181b21]">
+          <div>
+            <h2 className="text-lg font-semibold text-slate-200 flex items-center gap-2">
+              Job Details
+              <span className="text-xs font-mono bg-slate-800 text-slate-400 px-2 py-0.5 rounded border border-slate-700">
+                {job.id}
+              </span>
+            </h2>
+          </div>
+          <button onClick={onClose} className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-5 overflow-y-auto flex-1 space-y-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-[#181b21] p-3 rounded-lg border border-slate-800/60">
+              <p className="text-xs text-slate-500 mb-1">Status</p>
+              <p className="text-sm font-medium text-slate-300">{job.status}</p>
+            </div>
+            <div className="bg-[#181b21] p-3 rounded-lg border border-slate-800/60">
+              <p className="text-xs text-slate-500 mb-1">Type</p>
+              <p className="text-sm font-medium text-slate-300">{job.type}</p>
+            </div>
+            <div className="bg-[#181b21] p-3 rounded-lg border border-slate-800/60">
+              <p className="text-xs text-slate-500 mb-1">Attempts</p>
+              <p className="text-sm font-medium text-slate-300">{job.attempts} / {job.max_attempts}</p>
+            </div>
+            <div className="bg-[#181b21] p-3 rounded-lg border border-slate-800/60">
+              <p className="text-xs text-slate-500 mb-1">Locked By</p>
+              <p className="text-sm font-medium text-slate-300 truncate" title={job.locked_by ?? "None"}>{job.locked_by ?? "None"}</p>
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-medium text-slate-400 mb-2">Payload</h3>
+            <pre className="bg-[#0f1115] border border-slate-800 p-3 rounded-lg text-xs font-mono text-slate-300 overflow-x-auto">
+              {JSON.stringify(job.payload, null, 2)}
+            </pre>
+          </div>
+
+          <div>
+            <h3 className="text-sm font-medium text-slate-400 mb-2 flex items-center justify-between">
+              Execution Logs
+              {isLive && (
+                <span className="flex items-center gap-1.5 text-xs text-emerald-400">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  Live
+                </span>
+              )}
+            </h3>
+            
+            <div className="bg-[#0f1115] border border-slate-800 rounded-lg overflow-hidden flex flex-col">
+              {!logs ? (
+                <div className="p-4 text-sm text-slate-500 text-center">Loading logs...</div>
+              ) : logs.length === 0 ? (
+                <div className="p-4 text-sm text-slate-500 text-center">No logs available for this job yet.</div>
+              ) : (
+                <div className="divide-y divide-slate-800/50 max-h-60 overflow-y-auto">
+                  {logs.map((log, i) => (
+                    <div key={i} className="p-3 text-sm flex flex-col gap-1 hover:bg-[#181b21] transition-colors">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                            log.event_type === "ERROR" ? "bg-rose-500/10 text-rose-400 border border-rose-500/20" :
+                            log.event_type === "SUCCESS" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
+                            "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
+                          }`}>
+                            {log.event_type}
+                          </span>
+                          <span className="text-xs text-slate-500 font-mono">
+                            {new Date(log.created_at).toLocaleTimeString()}
+                          </span>
+                        </div>
+                        <span className="text-[10px] text-slate-600 font-mono truncate max-w-[150px]" title={log.worker_id}>
+                          {log.worker_id}
+                        </span>
+                      </div>
+                      {log.error_message && (
+                        <div className="mt-1 text-xs text-rose-400 font-mono bg-rose-500/5 p-2 rounded border border-rose-500/10 break-all">
+                          {log.error_message}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const { data: stats, mutate: mutateStats } = useSWR<JobStats>(`${API_URL}/jobs/stats`, fetcher, { refreshInterval: 1000 });
   const { data: jobs, mutate: mutateJobs } = useSWR<JobRecord[]>(`${API_URL}/jobs`, fetcher, { refreshInterval: 1000 });
   const [isSpawning, setIsSpawning] = useState(false);
+  const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
   const jobList = jobs ?? [];
+  const activeJob = selectedJobId ? jobList.find(j => j.id === selectedJobId) : null;
 
   const spawnJob = async (count = 1) => {
     setIsSpawning(true);
@@ -85,6 +210,9 @@ export default function Dashboard() {
 
   return (
     <main className="min-h-screen bg-[#0f1115] text-slate-200 p-8 font-sans">
+      {activeJob && (
+        <JobDetailsModal job={activeJob} onClose={() => setSelectedJobId(null)} />
+      )}
       <div className="max-w-[1400px] mx-auto space-y-8">
         {/* Header Section */}
         <header className="flex items-center justify-between border-b border-slate-800 pb-6">
@@ -163,7 +291,8 @@ export default function Dashboard() {
                   {columnJobs.map((job) => (
                     <div
                       key={job.id}
-                      className={`group relative bg-[#181b21] p-4 rounded-lg border ${col.border} shadow-sm transition-all hover:border-slate-600 hover:shadow-md animate-in fade-in slide-in-from-bottom-2 duration-300`}
+                      onClick={() => setSelectedJobId(job.id)}
+                      className={`group cursor-pointer relative bg-[#181b21] p-4 rounded-lg border ${col.border} shadow-sm transition-all hover:border-slate-500 hover:shadow-md animate-in fade-in slide-in-from-bottom-2 duration-300`}
                     >
                       <div className="flex items-start justify-between mb-2">
                         <span className="text-xs font-mono text-slate-400 truncate w-24" title={job.id}>
