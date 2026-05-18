@@ -1,7 +1,7 @@
 "use client";
 
 import useSWR from "swr";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Play,
   Flame,
@@ -76,6 +76,24 @@ function JobDetailsModal({ job, onClose }: { job: JobRecord; onClose: () => void
     { refreshInterval: isLive ? 1000 : 0 }
   );
 
+  const [timeLeft, setTimeLeft] = useState<number>(0);
+
+  useEffect(() => {
+    if (job.status !== "PENDING" || !job.run_at) return;
+
+    const runAt = new Date(job.run_at).getTime();
+    
+    const updateTimer = () => {
+      const now = Date.now();
+      const diff = Math.max(0, Math.floor((runAt - now) / 1000));
+      setTimeLeft(diff);
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [job.status, job.run_at]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-[#14171c] border border-slate-800 rounded-xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
@@ -124,15 +142,27 @@ function JobDetailsModal({ job, onClose }: { job: JobRecord; onClose: () => void
           <div>
             <h3 className="text-sm font-medium text-slate-400 mb-2 flex items-center justify-between">
               Execution Logs
-              {isLive && (
-                <span className="flex items-center gap-1.5 text-xs text-emerald-400">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              <div className="flex items-center gap-3">
+                {job.status === "PENDING" && timeLeft > 0 && job.attempts > 0 && (
+                  <span className="text-[10px] font-mono bg-amber-500/10 text-amber-400 px-2 py-0.5 rounded border border-amber-500/20">
+                    Retrying in {timeLeft}s
                   </span>
-                  Live
-                </span>
-              )}
+                )}
+                {job.status === "PENDING" && timeLeft > 0 && job.attempts === 0 && (
+                  <span className="text-[10px] font-mono bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded border border-blue-500/20">
+                    Runs in {timeLeft}s
+                  </span>
+                )}
+                {isLive && (
+                  <span className="flex items-center gap-1.5 text-xs text-emerald-400">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                    </span>
+                    Live
+                  </span>
+                )}
+              </div>
             </h3>
             
             <div className="bg-[#0f1115] border border-slate-800 rounded-lg overflow-hidden flex flex-col">
@@ -215,22 +245,22 @@ export default function Dashboard() {
       )}
       <div className="max-w-[1400px] mx-auto space-y-8">
         {/* Header Section */}
-        <header className="flex items-center justify-between border-b border-slate-800 pb-6">
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-slate-800 pb-6">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-500/20 rounded-lg">
+            <div className="p-2 bg-indigo-500/20 rounded-lg shrink-0">
               <Activity className="w-6 h-6 text-indigo-400" />
             </div>
             <div>
-              <h1 className="text-2xl font-semibold tracking-tight text-white">TaskForge Observer</h1>
-              <p className="text-sm text-slate-400 mt-0.5">Real-time distributed queue visualization</p>
+              <h1 className="text-xl md:text-2xl font-semibold tracking-tight text-white">TaskForge Observer</h1>
+              <p className="text-xs md:text-sm text-slate-400 mt-0.5">Real-time distributed queue visualization</p>
             </div>
           </div>
 
-          <div className="flex gap-4">
+          <div className="flex flex-col sm:flex-row gap-3 md:gap-4 w-full md:w-auto">
             <button
               onClick={() => spawnJob(1)}
               disabled={isSpawning}
-              className="group relative flex items-center gap-2 px-5 py-2.5 bg-transparent border border-indigo-500 hover:bg-indigo-500/10 disabled:opacity-50 text-indigo-400 rounded-lg text-sm font-semibold transition-all shadow-[0_0_15px_rgba(79,70,229,0.1)] hover:shadow-[0_0_20px_rgba(79,70,229,0.25)] overflow-hidden"
+              className="w-full sm:w-40 justify-center group relative flex items-center gap-2 px-5 py-2.5 bg-transparent border border-indigo-500 hover:bg-indigo-500/10 disabled:opacity-50 text-indigo-400 rounded-lg text-sm font-semibold transition-all shadow-[0_0_15px_rgba(79,70,229,0.1)] hover:shadow-[0_0_20px_rgba(79,70,229,0.25)] overflow-hidden"
             >
               <div className="absolute inset-0 bg-indigo-500/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
               <Play className="w-4 h-4 relative z-10 fill-current" />
@@ -239,7 +269,7 @@ export default function Dashboard() {
             <button
               onClick={() => spawnJob(50)}
               disabled={isSpawning}
-              className="group relative flex items-center gap-2 px-5 py-2.5 bg-transparent border border-rose-500 hover:bg-rose-500/10 disabled:opacity-50 text-rose-400 rounded-lg text-sm font-semibold transition-all shadow-[0_0_15px_rgba(225,29,72,0.1)] hover:shadow-[0_0_20px_rgba(225,29,72,0.25)] overflow-hidden"
+              className="w-full sm:w-40 justify-center group relative flex items-center gap-2 px-5 py-2.5 bg-transparent border border-rose-500 hover:bg-rose-500/10 disabled:opacity-50 text-rose-400 rounded-lg text-sm font-semibold transition-all shadow-[0_0_15px_rgba(225,29,72,0.1)] hover:shadow-[0_0_20px_rgba(225,29,72,0.25)] overflow-hidden"
             >
               <div className="absolute inset-0 bg-rose-500/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
               <Flame className="w-4 h-4 relative z-10 animate-pulse fill-current" />
@@ -249,12 +279,18 @@ export default function Dashboard() {
         </header>
 
         {/* Stats Section */}
-        <section className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <section className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 md:gap-4">
           {COLUMNS.map((col) => {
             const Icon = col.icon;
 
             return (
-              <div key={col.id} className="bg-[#181b21] border border-slate-800 rounded-xl p-5 flex items-center justify-between shadow-sm">
+              <div 
+                key={col.id}
+                onClick={() => {
+                  document.getElementById(`col-${col.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+                }}
+                className="bg-[#181b21] cursor-pointer hover:border-slate-600 transition-colors border border-slate-800 rounded-xl p-5 flex items-center justify-between shadow-sm"
+              >
                 <div>
                   <p className="text-sm font-medium text-slate-400">{col.label}</p>
                   <p className="text-3xl font-bold text-white mt-1">
@@ -270,13 +306,13 @@ export default function Dashboard() {
         </section>
 
         {/* Kanban Board Section */}
-        <section className="grid grid-cols-1 md:grid-cols-5 gap-6 pt-4 h-[calc(100vh-320px)] min-h-[500px]">
+        <section className="flex md:grid md:grid-cols-5 gap-4 md:gap-6 pt-4 h-[calc(100vh-320px)] min-h-[500px] overflow-x-auto pb-6 snap-x snap-mandatory">
           {COLUMNS.map((col) => {
             const Icon = col.icon;
             const columnJobs = jobList.filter((job) => job.status === col.id);
 
             return (
-              <div key={col.id} className="flex flex-col bg-[#14171c] rounded-xl border border-slate-800/60 overflow-hidden shadow-sm">
+              <div id={`col-${col.id}`} key={col.id} className="flex flex-col shrink-0 w-[85vw] sm:w-[320px] md:w-auto snap-center bg-[#14171c] rounded-xl border border-slate-800/60 overflow-hidden shadow-sm">
                 <div className="flex items-center justify-between p-4 border-b border-slate-800/60 bg-[#181b21]">
                   <div className="flex items-center gap-2">
                     <Icon className={`w-4 h-4 ${col.color}`} />
