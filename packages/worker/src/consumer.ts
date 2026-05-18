@@ -92,6 +92,7 @@ export const startConsumer = async () => {
         const dbResult = await pool.query(
           `UPDATE jobs
            SET status = 'RUNNING',
+               attempts = attempts + 1,
                locked_at = NOW(),
                locked_by = $2,
                updated_at = NOW()
@@ -159,7 +160,7 @@ export const startConsumer = async () => {
           return;
         }
 
-        const currentAttempts = jobState.attempts + 1;
+        const currentAttempts = jobState.attempts;
 
         if (currentAttempts < jobState.max_attempts) {
           // Exponential Backoff
@@ -172,13 +173,12 @@ export const startConsumer = async () => {
           await pool.query(
             `UPDATE jobs 
                 SET status = 'PENDING', 
-                    attempts = $1,
-                    run_at = NOW() + ($2 * INTERVAL '1 second'),
+                    run_at = NOW() + ($1 * INTERVAL '1 second'),
                     locked_at = NULL,
                     locked_by = NULL,
                     updated_at = NOW()
-                WHERE id = $3`,
-            [currentAttempts, delaySeconds, jobId],
+                WHERE id = $2`,
+            [delaySeconds, jobId],
           );
 
           channel.ack(msg);
@@ -190,12 +190,11 @@ export const startConsumer = async () => {
           await pool.query(
             `UPDATE jobs
              SET status = 'FAILED',
-                 attempts = $1,
                  locked_at = NULL,
                  locked_by = NULL,
                  updated_at = NOW()
-             WHERE id = $2`,
-            [currentAttempts, jobId],
+             WHERE id = $1`,
+            [jobId],
           );
           channel.nack(msg, false, false);
         }

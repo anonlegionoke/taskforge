@@ -34,13 +34,12 @@ const resetStaleLeases = async () => {
   const { rows } = await pool.query<{ id: string; status: string }>(
     `
       UPDATE jobs
-      SET attempts = attempts + 1,
-          status = CASE
-            WHEN attempts + 1 >= max_attempts THEN 'FAILED'::job_status
+      SET status = CASE
+            WHEN attempts >= max_attempts THEN 'FAILED'::job_status
             ELSE 'PENDING'::job_status
           END,
           run_at = CASE
-            WHEN attempts + 1 >= max_attempts THEN run_at
+            WHEN attempts >= max_attempts THEN run_at
             ELSE NOW()
           END,
           locked_at = NULL,
