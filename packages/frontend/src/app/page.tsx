@@ -12,12 +12,33 @@ import {
   Activity,
   ListChecks,
   X,
+  Terminal,
+  Server,
+  Database,
+  ShieldAlert,
+  Cpu,
   type LucideIcon,
 } from "lucide-react";
 
 type JobStatus = "PENDING" | "PROCESSING" | "RUNNING" | "COMPLETED" | "FAILED";
 
 type JobStats = Record<JobStatus, number>;
+
+interface SystemLog {
+  id: string;
+  source: string;
+  level: string;
+  message: string;
+  created_at: string;
+}
+
+interface SystemHealth {
+  api: string;
+  db: string;
+  rabbitmq: string;
+  worker: string;
+  timestamp: string;
+}
 
 interface JobRecord {
   id: string;
@@ -67,6 +88,8 @@ const COLUMNS: JobColumn[] = [
   { id: "COMPLETED", label: "Completed", icon: CheckCircle, color: "text-emerald-400", bg: "bg-emerald-950/30", border: "border-emerald-900/50" },
   { id: "FAILED", label: "Failed", icon: XCircle, color: "text-rose-400", bg: "bg-rose-950/30", border: "border-rose-900/50" },
 ];
+
+
 
 function JobDetailsModal({ job, onClose }: { job: JobRecord; onClose: () => void }) {
   const isLive = ["PENDING", "PROCESSING", "RUNNING"].includes(job.status);
@@ -213,8 +236,16 @@ export default function Dashboard() {
   const { data: jobs, mutate: mutateJobs } = useSWR<JobRecord[]>(`${API_URL}/jobs`, fetcher, { refreshInterval: 1000 });
   const [isSpawning, setIsSpawning] = useState(false);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
+  const [showConsole, setShowConsole] = useState(false);
+  const [showHealth, setShowHealth] = useState(false);
   const jobList = jobs ?? [];
   const activeJob = selectedJobId ? jobList.find(j => j.id === selectedJobId) : null;
+
+  const { data: health } = useSWR<SystemHealth>(`${API_URL}/system/health`, fetcher, { refreshInterval: 2000 });
+  const { data: logs } = useSWR<SystemLog[]>(showConsole ? `${API_URL}/system/logs` : null, fetcher, { refreshInterval: 1000 });
+
+  const isHealthy = health ? (health.api === "UP" && health.db === "UP" && health.rabbitmq === "UP" && health.worker === "UP") : true;
+  const isUp = (status?: string) => status === "UP";
 
   const spawnJob = async (count = 1) => {
     setIsSpawning(true);
@@ -238,6 +269,22 @@ export default function Dashboard() {
     setIsSpawning(false);
   };
 
+  const crashWorker = async () => {
+    setIsSpawning(true);
+    try {
+      await fetch(`${API_URL}/jobs`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "chaos_crash_worker", payload: { simulate: "ungraceful_kill" }, max_attempts: 1 }),
+      });
+      mutateStats();
+      mutateJobs();
+    } catch (e) {
+      console.error(e);
+    }
+    setIsSpawning(false);
+  };
+
   return (
     <main className="min-h-screen bg-[#0f1115] text-slate-200 p-8 font-sans">
       {activeJob && (
@@ -245,7 +292,7 @@ export default function Dashboard() {
       )}
       <div className="max-w-[1400px] mx-auto space-y-8">
         {/* Header Section */}
-        <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-slate-800 pb-6">
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-slate-800 pb-6 relative">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-indigo-500/20 rounded-lg shrink-0">
               <Activity className="w-6 h-6 text-indigo-400" />
@@ -256,27 +303,153 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row gap-3 md:gap-4 w-full md:w-auto">
-            <button
-              onClick={() => spawnJob(1)}
-              disabled={isSpawning}
-              className="w-full sm:w-40 justify-center group relative flex items-center gap-2 px-5 py-2.5 bg-transparent border border-indigo-500 hover:bg-indigo-500/10 disabled:opacity-50 text-indigo-400 rounded-lg text-sm font-semibold transition-all shadow-[0_0_15px_rgba(79,70,229,0.1)] hover:shadow-[0_0_20px_rgba(79,70,229,0.25)] overflow-hidden"
-            >
-              <div className="absolute inset-0 bg-indigo-500/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
-              <Play className="w-4 h-4 relative z-10 fill-current" />
-              <span className="relative z-10">Spawn 1 Job</span>
-            </button>
-            <button
-              onClick={() => spawnJob(50)}
-              disabled={isSpawning}
-              className="w-full sm:w-40 justify-center group relative flex items-center gap-2 px-5 py-2.5 bg-transparent border border-rose-500 hover:bg-rose-500/10 disabled:opacity-50 text-rose-400 rounded-lg text-sm font-semibold transition-all shadow-[0_0_15px_rgba(225,29,72,0.1)] hover:shadow-[0_0_20px_rgba(225,29,72,0.25)] overflow-hidden"
-            >
-              <div className="absolute inset-0 bg-rose-500/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
-              <Flame className="w-4 h-4 relative z-10 animate-pulse fill-current" />
-              <span className="relative z-10">Chaos: Spawn 50</span>
-            </button>
+          <div className="flex flex-col md:flex-row justify-start md:justify-end gap-3 md:gap-4 w-full md:w-auto relative">
+            <div className="grid grid-cols-2 gap-3 md:flex md:gap-4 w-full md:w-auto relative">
+              <button
+                onClick={() => { setShowConsole(!showConsole); setShowHealth(false); }}
+                className={`w-full md:w-auto justify-center group relative flex items-center gap-2 px-4 py-2.5 border text-sm font-medium transition-all shadow-sm rounded-lg ${showConsole ? 'bg-slate-800 border-slate-600 text-white' : 'bg-[#181b21] hover:bg-slate-800 border-slate-700 text-slate-300'}`}
+              >
+                <Terminal className={`w-4 h-4 transition-colors ${showConsole ? 'text-indigo-400' : 'text-slate-400 group-hover:text-white'}`} />
+                Console
+              </button>
+              <button
+                onClick={() => { setShowHealth(!showHealth); setShowConsole(false); }}
+                className={`w-full md:w-auto justify-center group relative flex items-center gap-2 px-4 py-2.5 border text-sm font-medium transition-all shadow-sm rounded-lg ${showHealth ? 'bg-slate-800 border-slate-600 text-white' : 'bg-[#181b21] hover:bg-slate-800 border-slate-700 text-slate-300'}`}
+              >
+                <div className="relative">
+                  <Activity className={`w-4 h-4 ${isHealthy ? 'text-emerald-400' : 'text-rose-400'}`} />
+                  <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isHealthy ? 'bg-emerald-400' : 'bg-rose-400'}`}></span>
+                    <span className={`relative inline-flex rounded-full h-2 w-2 ${isHealthy ? 'bg-emerald-500' : 'bg-rose-500'}`}></span>
+                  </span>
+                </div>
+                Health
+              </button>
+
+              {showHealth && (
+                <div className="absolute right-0 md:right-auto md:left-0 top-[110%] z-50 w-full md:w-80 bg-[#14171c] border border-slate-700 rounded-xl shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-top-2 fade-in duration-200">
+                  <div className="p-3 border-b border-slate-800 bg-[#181b21] flex justify-between items-center">
+                    <h2 className="text-sm font-semibold text-slate-200">System Diagnostics</h2>
+                    {isHealthy ? (
+                      <span className="text-[10px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 rounded">All Systems Go</span>
+                    ) : (
+                      <span className="text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2 py-0.5 rounded">Degraded</span>
+                    )}
+                  </div>
+                  <div className="p-4 space-y-3">
+                    {!health ? (
+                      <div className="text-slate-500 text-xs text-center animate-pulse">Running diagnostics...</div>
+                    ) : (
+                      <div className="space-y-2">
+                        {[
+                          { label: 'API Server', icon: Server, status: health.api },
+                          { label: 'PostgreSQL DB', icon: Database, status: health.db },
+                          { label: 'RabbitMQ Cluster', icon: ServerCog, status: health.rabbitmq },
+                          { label: 'Worker Node', icon: Cpu, status: health.worker }
+                        ].map(item => (
+                          <div key={item.label} className="flex items-center justify-between p-3 bg-[#181b21] rounded-lg border border-slate-800/60 transition-all">
+                            <div className="flex items-center gap-2">
+                              <item.icon className="w-4 h-4 text-slate-400" />
+                              <span className="text-sm font-medium text-slate-200">{item.label}</span>
+                            </div>
+                            <div className={`px-2 py-0.5 text-[10px] font-bold rounded ${isUp(item.status) ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'}`}>
+                              {item.status || 'DOWN'}
+                            </div>
+                          </div>
+                        ))}
+                        <div className="text-center text-[10px] text-slate-500 mt-2 pt-2 border-t border-slate-800">
+                          Updated: {new Date(health.timestamp).toLocaleTimeString()}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-3 gap-3 md:flex md:gap-4 w-full md:w-auto">
+              <button
+                onClick={crashWorker}
+                disabled={isSpawning}
+                className="w-full md:w-auto justify-center group relative flex items-center gap-2 px-3 py-2.5 bg-transparent border border-orange-500 hover:bg-orange-500/10 disabled:opacity-50 text-orange-400 rounded-lg text-xs font-semibold transition-all shadow-[0_0_15px_rgba(249,115,22,0.1)] hover:shadow-[0_0_20px_rgba(249,115,22,0.25)] overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-orange-500/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
+                <ShieldAlert className="w-3.5 h-3.5 relative z-10" />
+                <span className="relative z-10 hidden sm:inline">Kill Worker</span>
+                <span className="relative z-10 sm:hidden">Kill</span>
+              </button>
+              <button
+                onClick={() => spawnJob(1)}
+                disabled={isSpawning}
+                className="w-full md:w-auto justify-center group relative flex items-center gap-2 px-3 py-2.5 bg-transparent border border-indigo-500 hover:bg-indigo-500/10 disabled:opacity-50 text-indigo-400 rounded-lg text-xs font-semibold transition-all shadow-[0_0_15px_rgba(79,70,229,0.1)] hover:shadow-[0_0_20px_rgba(79,70,229,0.25)] overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-indigo-500/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
+                <Play className="w-3.5 h-3.5 relative z-10 fill-current" />
+                <span className="relative z-10 hidden sm:inline">Spawn 1</span>
+                <span className="relative z-10 sm:hidden">+1</span>
+              </button>
+              <button
+                onClick={() => spawnJob(50)}
+                disabled={isSpawning}
+                className="w-full md:w-auto justify-center group relative flex items-center gap-2 px-3 py-2.5 bg-transparent border border-rose-500 hover:bg-rose-500/10 disabled:opacity-50 text-rose-400 rounded-lg text-xs font-semibold transition-all shadow-[0_0_15px_rgba(225,29,72,0.1)] hover:shadow-[0_0_20px_rgba(225,29,72,0.25)] overflow-hidden"
+              >
+                <div className="absolute inset-0 bg-rose-500/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
+                <Flame className="w-3.5 h-3.5 relative z-10 animate-pulse fill-current" />
+                <span className="relative z-10 hidden sm:inline">Chaos 50</span>
+                <span className="relative z-10 sm:hidden">+50</span>
+              </button>
+            </div>
           </div>
         </header>
+
+        {showConsole && (
+          <div className="w-full bg-[#0c0e12] border border-slate-700 rounded-xl shadow-lg overflow-hidden flex flex-col h-64 md:h-80 animate-in slide-in-from-top-2 fade-in duration-200">
+            <div className="flex items-center justify-between p-3 border-b border-slate-800 bg-[#14171c]">
+              <h2 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                <Terminal className="w-4 h-4 text-indigo-400" />
+                Global Console
+                <span className="flex items-center gap-1.5 text-[10px] text-emerald-400 ml-2 border border-emerald-500/20 bg-emerald-500/10 px-1.5 py-0.5 rounded-full">
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                  </span>
+                  Live Stream
+                </span>
+              </h2>
+              <button onClick={() => setShowConsole(false)} className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-colors">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-3 space-y-1 font-mono text-[10px] sm:text-[11px]">
+              {!logs ? (
+                <div className="text-slate-500">Connecting to log stream...</div>
+              ) : logs.length === 0 ? (
+                <div className="text-slate-500">Awaiting events...</div>
+              ) : (
+                logs.map((log) => (
+                  <div key={log.id} className="flex flex-col sm:flex-row gap-1 sm:gap-3 hover:bg-white/5 px-2 py-0.5 rounded">
+                    <span className="text-slate-500 shrink-0">
+                      {new Date(log.created_at).toLocaleTimeString([], { hour12: false, fractionalSecondDigits: 3 })}
+                    </span>
+                    <span className={`shrink-0 w-12 font-bold ${
+                      log.level === 'ERROR' ? 'text-rose-400' :
+                      log.level === 'WARN' ? 'text-amber-400' :
+                      'text-emerald-400'
+                    }`}>
+                      {log.level}
+                    </span>
+                    <span className="shrink-0 w-24 text-indigo-300 truncate" title={log.source}>
+                      [{log.source}]
+                    </span>
+                    <span className={`break-all ${log.level === 'ERROR' ? 'text-rose-300' : 'text-slate-300'}`}>
+                      {log.message}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Stats Section */}
         <section className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 md:gap-4">

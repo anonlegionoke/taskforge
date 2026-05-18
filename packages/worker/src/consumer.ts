@@ -55,6 +55,7 @@ const logJobEvent = async (
 };
 
 export const startConsumer = async () => {
+  import("@taskforge/shared").then((m) => m.captureLogs("WORKER"));
   try {
     console.log("Starting Taskforge worker...");
 
@@ -111,6 +112,12 @@ export const startConsumer = async () => {
         }
 
         await logJobEvent(jobId, "CLAIMED");
+
+        if (job.type === "chaos_crash_worker") {
+          console.error("CRITICAL: Chaos crash triggered! Worker process exiting unexpectedly...");
+          setTimeout(() => process.exit(1), 100);
+          return; // Intentionally don't ack to simulate ungraceful crash
+        }
 
         const stopHeartbeat = startJobHeartbeat(jobId);
         try {

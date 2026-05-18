@@ -50,6 +50,7 @@ services:
   worker:
     build: .
     container_name: taskforge-worker
+    restart: always
     command: npm run dev:worker
     environment:
       - DATABASE_URL=postgres://taskforge_user:taskforge_password@postgres:5432/taskforge_db

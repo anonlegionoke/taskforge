@@ -51,3 +51,14 @@ CREATE TRIGGER jobs_set_updated_at
 BEFORE UPDATE ON jobs
 FOR EACH ROW
 EXECUTE FUNCTION set_updated_at();
+
+-- System Logs for Global Console
+CREATE TABLE system_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    source VARCHAR(255) NOT NULL,
+    level VARCHAR(50) NOT NULL,
+    message TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX idx_system_logs_created_at ON system_logs(created_at DESC);
