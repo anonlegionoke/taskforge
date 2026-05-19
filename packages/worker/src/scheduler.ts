@@ -111,7 +111,8 @@ const sweepJobs = async (channel: Awaited<ReturnType<typeof initRabbitMQ>>["chan
   }
 };
 
-const startScheduler = async () => {
+export const startScheduler = async () => {
+  import("@taskforge/shared").then((m) => m.captureLogs("SCHEDULER"));
   try {
     console.log("Starting Taskforge Scheduler...");
     await pool.query("SELECT 1");

@@ -2,6 +2,7 @@ import { Router } from "express";
 import { pool } from "@taskforge/shared";
 
 export const jobRouter = Router();
+export const systemRouter = Router();
 
 // GET "/jobs/stats"
 jobRouter.get("/stats", async (req, res) => {
@@ -62,9 +63,58 @@ jobRouter.get("/", async (req, res) => {
   }
 });
 
+// GET "/system/logs"
+systemRouter.get("/logs", async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT * FROM system_logs ORDER BY created_at DESC LIMIT 100`
+    );
+    return res.status(200).json(rows);
+  } catch (error) {
+    console.error("Error fetching system logs:", error);
+    return res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// GET "/system/health"
+systemRouter.get("/health", async (req, res) => {
+  const health = {
+    api: "UP",
+    db: "DOWN",
+    rabbitmq: "DOWN",
+    worker: "DOWN",
+    timestamp: new Date().toISOString()
+  };
+
+  try {
+    await pool.query('SELECT 1');
+    health.db = "UP";
+  } catch (e) {
+    health.db = "DOWN";
+  }
+
+  try {
+    const { initRabbitMQ } = await import("@taskforge/shared");
+    const { channel } = await initRabbitMQ();
+    health.rabbitmq = "UP";
+    
+    try {
+      const q = await channel.checkQueue("taskforge.queue.jobs");
+      health.worker = q.consumerCount > 0 ? "UP" : "DOWN";
+    } catch (e) {
+      health.worker = "DOWN";
+    }
+  } catch (e) {
+    health.rabbitmq = "DOWN";
+    health.worker = "DOWN";
+  }
+
+  return res.status(200).json(health);
+});
+
 // POST "/jobs"
 jobRouter.post("/", async (req, res) => {
-  const { type, payload, runAt } = req.body;
+  const { type, payload, runAt, max_attempts } = req.body;
 
   if (!type) {
     return res.status(400).json({ error: 'Job "type" is required' });
@@ -75,12 +125,13 @@ jobRouter.post("/", async (req, res) => {
   }
 
   try {
+    const maxAttemptsVal = typeof max_attempts === "number" ? max_attempts : 3;
     const jobResult = await pool.query<{ id: string; run_at: string }>(
-      `INSERT INTO jobs (type, payload, status, run_at)
-        VALUES($1, $2, 'PENDING', COALESCE($3::timestamptz, NOW()))
+      `INSERT INTO jobs (type, payload, status, run_at, max_attempts)
+        VALUES($1, $2, 'PENDING', COALESCE($3::timestamptz, NOW()), $4)
         RETURNING id, run_at   
         `,
-      [type, payload ?? {}, runAt ?? null],
+      [type, payload ?? {}, runAt ?? null, maxAttemptsVal],
     );
 
     const job = jobResult.rows[0];

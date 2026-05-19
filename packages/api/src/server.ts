@@ -1,4 +1,4 @@
-import { pool } from "@taskforge/shared";
+import { pool, captureLogs } from "@taskforge/shared";
 import { Server } from "http";
 import app from "./app";
 
@@ -7,6 +7,7 @@ let server: Server;
 
 // Boot Sequence
 export const startAPIServer = async () => {
+  captureLogs("API_SERVER");
   try {
     console.log("Starting Taskforge API Server...");
 
