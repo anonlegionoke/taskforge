@@ -294,9 +294,7 @@ export default function Dashboard() {
         {/* Header Section */}
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-slate-800 pb-6 relative">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-indigo-500/20 rounded-lg shrink-0">
-              <Activity className="w-6 h-6 text-indigo-400" />
-            </div>
+            <img src="/logo.svg" alt="TaskForge Logo" className="w-10 h-10 md:w-12 md:h-12 shrink-0 drop-shadow-md shadow-black/20" />
             <div>
               <h1 className="text-xl md:text-2xl font-semibold tracking-tight text-white">TaskForge Observer</h1>
               <p className="text-xs md:text-sm text-slate-400 mt-0.5">Real-time distributed queue visualization</p>
