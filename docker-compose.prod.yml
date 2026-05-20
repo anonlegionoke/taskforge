@@ -1,22 +1,4 @@
 services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: taskforge-postgres
-    environment:
-      POSTGRES_USER: ${DATABASE_USER}
-      POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
-      POSTGRES_DB: ${DATABASE_NAME}
-    ports:
-      - "5433:5432"
-    volumes:
-      - ./infrastructure/postgres/init.sql:/docker-entrypoint-initdb.d/init.sql
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER} -d ${DATABASE_NAME}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   rabbitmq:
     image: rabbitmq:3-management-alpine
     container_name: taskforge-rabbitmq
