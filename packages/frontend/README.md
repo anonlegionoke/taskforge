@@ -1,34 +1,33 @@
-TaskForge dashboard built with Next.js.
+# TaskForge Observer
+
+This is the frontend dashboard for the TaskForge distributed job scheduler. It provides a real-time Kanban-style interface, global system logs, and live health monitoring.
+
+## Overview
+
+For full system architecture, chaos engineering details, and comprehensive documentation, please see the **[Root TaskForge README](../../README.md)**.
 
 ## Getting Started
 
-First, set the API URL if it is not running on `http://localhost:3000`:
+First, ensure the backend API, PostgreSQL, and RabbitMQ are running via Docker Compose (see root README).
+
+Then, start the development server for the dashboard:
 
 ```bash
-NEXT_PUBLIC_API_URL=http://localhost:3000
-```
-
-Then run the development server:
-
-```bash
+npm install
 npm run dev --workspace=frontend
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the dashboard.
+The application will start on `http://localhost:3001` (or the next available port if 3000 is occupied by the API).
 
-The dashboard uses a system font stack so production builds do not depend on fetching remote fonts.
+If your backend is running somewhere else, you can configure the API URL:
 
-## Learn More
+```bash
+NEXT_PUBLIC_API_URL=http://your-api-url:3000 npm run dev --workspace=frontend
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Built With
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy On Vercel
-
-Set `NEXT_PUBLIC_API_URL` in the Vercel project environment to the deployed API base URL.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- **Next.js 14** (App Router)
+- **Tailwind CSS**
+- **SWR** (for high-frequency short-polling)
+- **Lucide Icons**
