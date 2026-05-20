@@ -1,41 +1,79 @@
-# TaskForge - Distributed Job Scheduler
+<p align="center">
+  <img src="packages/frontend/public/logo.svg" width="120" alt="TaskForge Logo" />
+</p>
 
-A production-grade, distributed job scheduler built to demonstrate backend and distributed systems architecture.
+<h1 align="center">TaskForge</h1>
+
+<p align="center">
+  <strong>A production-grade, distributed job scheduler built to demonstrate resilient backend systems architecture and modern observability.</strong>
+</p>
 
 ## Overview
 
-TaskForge is designed to reliably schedule, distribute, and execute jobs across multiple worker nodes. It handles immediate execution, delayed scheduling, and periodic (cron-style) tasks, with robust mechanisms for retries, failure handling, and observability.
+TaskForge is a distributed job scheduler capable of handling job creation, execution, retries, and failures across horizontally scaled worker nodes. It comes equipped with a **real-time, Kanban-style Observer Dashboard** that visualizes system health, job queues, and live event logs.
+
+Built as a portfolio piece, TaskForge intentionally implements "Chaos Engineering" features, allowing you to forcefully crash worker nodes to observe the system's robust auto-recovery and idempotency mechanisms in action.
 
 ## Key Features
 
-- **Flexible Scheduling**: Schedule jobs for immediate, delayed, or recurring execution.
-- **Distributed Execution**: Horizontally scalable worker pool to process jobs in parallel.
-- **Reliability & Retries**: Built-in exponential backoff for failed jobs and Dead Letter Queue (DLQ) integration.
-- **Idempotency**: Strict execution tokens and unique constraints to prevent duplicate processing.
-- **Observability**: Job status tracking, execution metrics, queue depth monitoring, and a lightweight dashboard.
+- **Distributed Execution**: Horizontally scalable worker pool leveraging RabbitMQ for message distribution.
+- **Resilience & Chaos Engineering**: Built-in "Kill Worker" fault-injection to demonstrate recovery from ungraceful shutdowns. Stale locks are automatically broken and re-queued by the Scheduler.
+- **Idempotency & Retries**: Strict database-level locks, transactional integrity, and exponential backoff for failing jobs.
+- **Real-Time Observability Dashboard**: A Next.js frontend using `SWR` for high-frequency short-polling, providing a responsive Kanban view of job states.
+- **Global Event Console**: Centralized live-streaming logs capturing every major event across the API, Scheduler, and Worker nodes.
+- **Live System Health**: Continuous pulse-checks on PostgreSQL, RabbitMQ, and Worker nodes with dynamic UI indicators.
 
 ## Architecture
 
-At a high level, the system consists of:
+TaskForge is decoupled into independent, highly-available services:
 
-- **API Service**: REST API handling job creation, cancellation, and status retrieval.
-- **Scheduler Service**: Polls for due jobs and enqueues them, ensuring exactly-once enqueueing via distributed locks.
-- **Worker Service**: Consumes jobs from the queue, executes the business logic, and manages retries or failures.
-- **Queue (RabbitMQ)**: Robust message broker configured with main, retry, and dead letter queues.
-- **Database (PostgreSQL)**: Source of truth for job state, scheduling timestamps, and metadata.
+- **API Service** (`packages/api`): Exposes REST endpoints to ingest jobs, query statistics, and fetch system logs.
+- **Scheduler Service** (`packages/worker/src/scheduler.ts`): Periodically sweeps the database for jobs due for execution, handling stale lock recovery (the "Healer").
+- **Worker Service** (`packages/worker/src/consumer.ts`): Consumes tasks from RabbitMQ, executes business logic, maintains a continuous heartbeat, and handles failures.
+- **Frontend Observer** (`packages/frontend`): A visually rich Next.js dashboard for monitoring and interacting with the cluster.
+- **PostgreSQL**: The absolute source of truth for job states, execution locks, and system logs.
+- **RabbitMQ**: The high-throughput message broker handling job distribution.
 
 ## Tech Stack
 
-- **Backend**: Node.js / TypeScript
+- **Backend**: Node.js, TypeScript, Express
 - **Database**: PostgreSQL
 - **Message Broker**: RabbitMQ
+- **Frontend**: React, Next.js, Tailwind CSS, Lucide Icons, SWR
 - **Infrastructure**: Docker & Docker Compose
-- **Frontend (Dashboard)**: React / Next.js
 
-## Implementation Phases
+## Getting Started
 
-1. **Phase 1**: Core Architecture & Component Definition.
-2. **Phase 2**: Core Implementation (API, DB, Scheduler, Queue, Worker, Retry/DLQ, Idempotency, Scaling).
-3. **Phase 3**: Observability (Metrics, Logging).
-4. **Phase 4**: Management Dashboard.
-5. **Phase 5**: Advanced Features (Distributed Locks, Priorities, Graceful Shutdown).
+### 1. Start the Backend Infrastructure
+
+The backend is fully containerized. Start the database, message broker, API, worker, and scheduler using Docker Compose:
+
+```bash
+docker-compose up --build
+```
+
+> _Note: The backend API runs on `http://localhost:3000`._
+
+### 2. Start the Frontend Dashboard
+
+In a separate terminal, install dependencies and start the Next.js observer dashboard:
+
+```bash
+npm install
+npm run dev --workspace=frontend
+```
+
+The dashboard will automatically start on [http://localhost:3001](http://localhost:3001) (as port 3000 is utilized by the API).
+
+## Try the "Chaos Demo"
+
+TaskForge was built to be broken. Open the Dashboard and try the following:
+
+1. **Spawn Jobs:** Click **`Spawn 1`** or **`Chaos 50`** to flood the system with tasks. Watch them flow through the Kanban board from _Queued_ to _Running_ to _Completed_.
+2. **Kill Worker:** While jobs are processing, click **`Kill Worker`**. This injects a fatal crash into the Node.js worker process.
+3. **Observe:** Watch the **Health** indicator instantly flip to `Degraded (Worker: DOWN)`. Manually restart the worker via Docker or rely on restart policies.
+4. **Auto-Recovery:** Because the crashed worker stopped sending its heartbeat, the Scheduler will eventually identify its claimed jobs as "stale", break their locks, and gracefully return them to the queue for processing.
+
+## License
+
+MIT
