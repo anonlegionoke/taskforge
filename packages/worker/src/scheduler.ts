@@ -1,5 +1,5 @@
 import "./config";
-import { initRabbitMQ, pool } from "@taskforge/shared";
+import { initRabbitMQ, pool, logJobEvent } from "@taskforge/shared";
 import os from "node:os";
 import type { ChannelModel } from "amqplib";
 
@@ -22,8 +22,7 @@ const resetStaleLeases = async () => {
       UPDATE jobs
       SET status = 'PENDING',
           locked_at = NULL,
-          locked_by = NULL,
-          updated_at = NOW()
+          locked_by = NULL
       WHERE status = 'PROCESSING'
         AND (locked_at IS NULL OR locked_at < NOW() - $1::interval)
       RETURNING id;
@@ -38,19 +37,36 @@ const resetStaleLeases = async () => {
             WHEN attempts >= max_attempts THEN 'FAILED'::job_status
             ELSE 'PENDING'::job_status
           END,
+          failed_at = CASE
+            WHEN attempts >= max_attempts THEN NOW()
+            ELSE NULL
+          END,
           run_at = CASE
             WHEN attempts >= max_attempts THEN run_at
             ELSE NOW()
           END,
           locked_at = NULL,
-          locked_by = NULL,
-          updated_at = NOW()
+          locked_by = NULL
       WHERE status = 'RUNNING'
         AND (locked_at IS NULL OR locked_at < NOW() - $1::interval)
       RETURNING id, status;
     `,
     [LOCK_TIMEOUT],
   );
+
+  if (staleQueuedJobs.rows.length > 0) {
+    await Promise.all(staleQueuedJobs.rows.map(row => logJobEvent(row.id, SCHEDULER_ID, "STALE_RECOVERED")));
+  }
+
+  if (rows.length > 0) {
+    await Promise.all(rows.map(row => {
+      if (row.status === "FAILED") {
+        return logJobEvent(row.id, SCHEDULER_ID, "FAILED", "Max attempts exhausted during stale running recovery");
+      } else {
+        return logJobEvent(row.id, SCHEDULER_ID, "STALE_RECOVERED");
+      }
+    }));
+  }
 
   if (staleQueuedJobs.rows.length > 0 || rows.length > 0) {
     const resetCount = rows.filter((row) => row.status === "PENDING").length;
@@ -70,7 +86,7 @@ const sweepJobs = async () => {
   try {
     await resetStaleLeases();
 
-    const { rows } = await pool.query<{ id: string }>(
+    const { rows } = await pool.query<{ id: string; run_at: Date; created_at: Date }>(
       `
             UPDATE jobs
             SET status = 'PROCESSING',
@@ -86,13 +102,19 @@ const sweepJobs = async () => {
                 LIMIT 50
                 FOR UPDATE SKIP LOCKED
             )
-            RETURNING id;
+            RETURNING id, run_at, created_at;
         `,
       [LOCK_TIMEOUT, SCHEDULER_ID],
     );
 
     if (rows.length > 0) {
       console.log(`Scheduler swept ${rows.length} ripe jobs. Pushing to RabbitMQ...`);
+
+      // For strict FIFO scheduling
+      rows.sort(
+        (a, b) =>
+          a.run_at.getTime() - b.run_at.getTime() || a.created_at.getTime() - b.created_at.getTime(),
+      );
 
       const { channel } = await initRabbitMQ();
       rabbitChannel = channel;

@@ -27,7 +27,7 @@ NEXT_PUBLIC_API_URL=http://your-api-url:3000 npm run dev --workspace=frontend
 
 ## Built With
 
-- **Next.js 14** (App Router)
+- **Next.js 16** (App Router)
 - **Tailwind CSS**
 - **SWR** (for high-frequency short-polling)
 - **Lucide Icons**

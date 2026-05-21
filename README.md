@@ -18,9 +18,9 @@ Built as a portfolio piece, TaskForge intentionally implements "Chaos Engineerin
 
 - **Distributed Execution**: Horizontally scalable worker pool leveraging RabbitMQ for message distribution.
 - **Resilience & Chaos Engineering**: Built-in "Kill Worker" fault-injection to demonstrate recovery from ungraceful shutdowns. Stale locks are automatically broken and re-queued by the Scheduler.
-- **Idempotency & Retries**: Strict database-level locks, transactional integrity, and exponential backoff for failing jobs.
+- **Execution Guarantees**: Guarantees **At-Least-Once** execution with **Strict FIFO** chronological ordering. Uses database-level locks, transactional integrity, and exponential backoff for failing jobs to provide robust internal idempotency guards.
 - **Real-Time Observability Dashboard**: A Next.js frontend using `SWR` for high-frequency short-polling, providing a responsive Kanban view of job states.
-- **Global Event Console**: Centralized live-streaming logs capturing every major event across the API, Scheduler, and Worker nodes.
+- **Global Event Console**: Centralized polling-based logs capturing every major event across the API, Scheduler, and Worker nodes.
 - **Live System Health**: Continuous pulse-checks on PostgreSQL, RabbitMQ, and Worker nodes with dynamic UI indicators.
 
 ## Architecture

@@ -9,13 +9,17 @@ CREATE TABLE jobs (
     payload JSONB NOT NULL DEFAULT '{}'::jsonb,
     
     status job_status NOT NULL DEFAULT 'PENDING',
-    attempts INTEGER NOT NULL DEFAULT 0,
-    max_attempts INTEGER NOT NULL DEFAULT 3,
+    attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+    max_attempts INTEGER NOT NULL DEFAULT 3 CHECK (max_attempts > 0),
+    CHECK (attempts <= max_attempts),
     
     -- Scheduling & Locking Mechanics
     run_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     locked_at TIMESTAMPTZ,
     locked_by VARCHAR(255), -- worker node
+    
+    completed_at TIMESTAMPTZ,
+    failed_at TIMESTAMPTZ,
     
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -33,7 +37,7 @@ CREATE TABLE job_logs (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_jobs_status_run_at ON jobs(status, run_at);
+
 CREATE INDEX idx_jobs_status_run_at_created_at ON jobs(status, run_at, created_at);
 CREATE INDEX idx_jobs_status_locked_at ON jobs(status, locked_at);
 

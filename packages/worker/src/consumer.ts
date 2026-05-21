@@ -1,4 +1,4 @@
-import { initRabbitMQ, pool } from "@taskforge/shared";
+import { initRabbitMQ, pool, logJobEvent } from "@taskforge/shared";
 import { processJob } from "./processor";
 import os from "node:os";
 import type { ChannelModel, ConfirmChannel, ConsumeMessage } from "amqplib";
@@ -39,20 +39,6 @@ const startJobHeartbeat = (jobId: string) => {
   return () => clearInterval(timer);
 };
 
-const logJobEvent = async (
-  jobId: string,
-  eventType: string,
-  errorMessage: string | null = null,
-) => {
-  try {
-    await pool.query(
-      `INSERT INTO job_logs (job_id, worker_id, event_type, error_message) VALUES ($1, $2, $3, $4)`,
-      [jobId, WORKER_ID, eventType, errorMessage],
-    );
-  } catch (err) {
-    console.error(`Failed to write job log for ${jobId}:`, err);
-  }
-};
 
 const setupRabbitMQConsumer = async () => {
   if (isShuttingDown) return;
@@ -107,13 +93,13 @@ const setupRabbitMQConsumer = async () => {
         );
         const job = dbResult.rows[0];
 
-        if (!job) {
+        if (!jobId) {
           console.warn(`Job ${jobId} not found, not queued, or not due. Skipping.`);
           channel.ack(msg);
           return;
         }
 
-        await logJobEvent(jobId, "CLAIMED");
+        await logJobEvent(jobId, WORKER_ID, "CLAIMED");
 
         if (job.type === "chaos_crash_worker") {
           console.error("CRITICAL: Chaos crash triggered! Worker process exiting unexpectedly...");
@@ -131,14 +117,14 @@ const setupRabbitMQConsumer = async () => {
         await pool.query(
           `UPDATE jobs
            SET status = 'COMPLETED',
+               completed_at = NOW(),
                locked_at = NULL,
-               locked_by = NULL,
-               updated_at = NOW()
+               locked_by = NULL
            WHERE id = $1`,
           [jobId],
         );
 
-        await logJobEvent(jobId, "SUCCESS");
+        await logJobEvent(jobId, WORKER_ID, "SUCCESS");
 
         console.log(`SUCCESS: Job ${jobId} completed Successfully.`);
         channel.ack(msg);
@@ -153,7 +139,7 @@ const setupRabbitMQConsumer = async () => {
 
         console.error(`Failed to process job ${jobId}:`, errorMessage);
 
-        await logJobEvent(jobId, "ERROR", errorMessage);
+        await logJobEvent(jobId, WORKER_ID, "ERROR", errorMessage);
 
         const dbResult = await pool.query(
           `SELECT attempts, max_attempts 
@@ -165,6 +151,7 @@ const setupRabbitMQConsumer = async () => {
 
         if (!jobState) {
           console.warn(`Job ${jobId} disappeared while handling failure. Dropping message.`);
+          await logJobEvent(jobId, WORKER_ID, "DLQ_SENT", "Job disappeared from DB");
           channel.ack(msg);
           return;
         }
@@ -179,13 +166,14 @@ const setupRabbitMQConsumer = async () => {
             `Job ${jobId} failed. Retrying in ${delaySeconds}s... (Attempt ${currentAttempts} of ${jobState.max_attempts})`,
           );
 
+          await logJobEvent(jobId, WORKER_ID, "RETRY_SCHEDULED", errorMessage);
+
           await pool.query(
             `UPDATE jobs 
                 SET status = 'PENDING', 
                     run_at = NOW() + ($1 * INTERVAL '1 second'),
                     locked_at = NULL,
-                    locked_by = NULL,
-                    updated_at = NOW()
+                    locked_by = NULL
                 WHERE id = $2`,
             [delaySeconds, jobId],
           );
@@ -196,12 +184,14 @@ const setupRabbitMQConsumer = async () => {
             `Job ${jobId} permanently failed after ${jobState.max_attempts} attempts. Sending to DLQ.`,
           );
 
+          await logJobEvent(jobId, WORKER_ID, "FAILED", errorMessage);
+
           await pool.query(
             `UPDATE jobs
              SET status = 'FAILED',
+                 failed_at = NOW(),
                  locked_at = NULL,
-                 locked_by = NULL,
-                 updated_at = NOW()
+                 locked_by = NULL
              WHERE id = $1`,
             [jobId],
           );

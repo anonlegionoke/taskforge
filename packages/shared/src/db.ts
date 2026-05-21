@@ -22,3 +22,19 @@ pool.on('error', (err, client) => {
 export const query = (text: string, params?: unknown[]) => {
     return pool.query(text, params);
 };
+
+export const logJobEvent = async (
+  jobId: string,
+  actorId: string,
+  eventType: string,
+  errorMessage: string | null = null,
+) => {
+  try {
+    await pool.query(
+      `INSERT INTO job_logs (job_id, worker_id, event_type, error_message) VALUES ($1, $2, $3, $4)`,
+      [jobId, actorId, eventType, errorMessage],
+    );
+  } catch (err) {
+    console.error(`Failed to write job log for ${jobId}:`, err);
+  }
+};

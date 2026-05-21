@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { pool } from "@taskforge/shared";
+import { pool, logJobEvent } from "@taskforge/shared";
 
 export const jobRouter = Router();
 export const systemRouter = Router();
@@ -83,12 +83,25 @@ systemRouter.get("/health", async (req, res) => {
     db: "DOWN",
     rabbitmq: "DOWN",
     worker: "DOWN",
+    scheduler: "DOWN",
     timestamp: new Date().toISOString()
   };
 
   try {
     await pool.query('SELECT 1');
     health.db = "UP";
+    
+    try {
+      const schedulerCheck = await pool.query(`
+        SELECT 1 FROM system_logs 
+        WHERE source = 'SCHEDULER' 
+        AND created_at > NOW() - INTERVAL '30 seconds' 
+        LIMIT 1
+      `);
+      health.scheduler = (schedulerCheck.rowCount && schedulerCheck.rowCount > 0) ? "UP" : "DOWN";
+    } catch (e) {
+      health.scheduler = "DOWN";
+    }
   } catch (e) {
     health.db = "DOWN";
   }
@@ -116,16 +129,26 @@ systemRouter.get("/health", async (req, res) => {
 jobRouter.post("/", async (req, res) => {
   const { type, payload, runAt, max_attempts } = req.body;
 
-  if (!type) {
-    return res.status(400).json({ error: 'Job "type" is required' });
+  if (typeof type !== "string" || type.trim().length === 0 || type.length > 255) {
+    return res.status(400).json({ error: 'Job "type" must be a non-empty string (max 255 chars).' });
+  }
+
+  if (payload !== undefined && (typeof payload !== "object" || payload === null || Array.isArray(payload))) {
+    return res.status(400).json({ error: 'Job "payload" must be a JSON object.' });
   }
 
   if (runAt !== undefined && (typeof runAt !== "string" || Number.isNaN(Date.parse(runAt)))) {
-    return res.status(400).json({ error: 'Job "runAt" must be a valid timestamp.' });
+    return res.status(400).json({ error: 'Job "runAt" must be a valid timestamp string.' });
+  }
+
+  if (max_attempts !== undefined) {
+    if (typeof max_attempts !== "number" || !Number.isInteger(max_attempts) || max_attempts < 1 || max_attempts > 10) {
+      return res.status(400).json({ error: 'Job "max_attempts" must be an integer between 1 and 10.' });
+    }
   }
 
   try {
-    const maxAttemptsVal = typeof max_attempts === "number" ? max_attempts : 3;
+    const maxAttemptsVal = max_attempts ?? 3;
     const jobResult = await pool.query<{ id: string; run_at: string }>(
       `INSERT INTO jobs (type, payload, status, run_at, max_attempts)
         VALUES($1, $2, 'PENDING', COALESCE($3::timestamptz, NOW()), $4)
@@ -135,6 +158,7 @@ jobRouter.post("/", async (req, res) => {
     );
 
     const job = jobResult.rows[0];
+    await logJobEvent(job.id, "API", "SCHEDULED");
     console.log("SUCCESS: Job scheduled: ", job.id);
 
     return res.status(202).json({

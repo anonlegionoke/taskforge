@@ -2,6 +2,7 @@
 
 import useSWR from "swr";
 import { useState, useEffect } from "react";
+import Image from "next/image";
 import {
   Play,
   Flame,
@@ -17,6 +18,7 @@ import {
   Database,
   ShieldAlert,
   Cpu,
+  Timeline,
   type LucideIcon,
 } from "lucide-react";
 
@@ -37,6 +39,7 @@ interface SystemHealth {
   db: string;
   rabbitmq: string;
   worker: string;
+  scheduler: string;
   timestamp: string;
 }
 
@@ -46,7 +49,7 @@ interface JobRecord {
   status: JobStatus;
   attempts: number;
   max_attempts: number;
-  payload: any;
+  payload: Record<string, unknown>;
   locked_by: string | null;
   locked_at: string | null;
   run_at: string;
@@ -71,6 +74,7 @@ interface JobColumn {
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
+
 const fetcher = async (url: string) => {
   const response = await fetch(url);
 
@@ -105,7 +109,7 @@ function JobDetailsModal({ job, onClose }: { job: JobRecord; onClose: () => void
     if (job.status !== "PENDING" || !job.run_at) return;
 
     const runAt = new Date(job.run_at).getTime();
-    
+
     const updateTimer = () => {
       const now = Date.now();
       const diff = Math.max(0, Math.floor((runAt - now) / 1000));
@@ -120,7 +124,7 @@ function JobDetailsModal({ job, onClose }: { job: JobRecord; onClose: () => void
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-[#14171c] border border-slate-800 rounded-xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-        
+
         <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-[#181b21]">
           <div>
             <h2 className="text-lg font-semibold text-slate-200 flex items-center gap-2">
@@ -187,7 +191,7 @@ function JobDetailsModal({ job, onClose }: { job: JobRecord; onClose: () => void
                 )}
               </div>
             </h3>
-            
+
             <div className="bg-[#0f1115] border border-slate-800 rounded-lg overflow-hidden flex flex-col">
               {!logs ? (
                 <div className="p-4 text-sm text-slate-500 text-center">Loading logs...</div>
@@ -199,11 +203,10 @@ function JobDetailsModal({ job, onClose }: { job: JobRecord; onClose: () => void
                     <div key={i} className="p-3 text-sm flex flex-col gap-1 hover:bg-[#181b21] transition-colors">
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex items-center gap-2">
-                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
-                            log.event_type === "ERROR" ? "bg-rose-500/10 text-rose-400 border border-rose-500/20" :
-                            log.event_type === "SUCCESS" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
-                            "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
-                          }`}>
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${log.event_type === "ERROR" ? "bg-rose-500/10 text-rose-400 border border-rose-500/20" :
+                              log.event_type === "SUCCESS" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
+                                "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
+                            }`}>
                             {log.event_type}
                           </span>
                           <span className="text-xs text-slate-500 font-mono">
@@ -244,7 +247,7 @@ export default function Dashboard() {
   const { data: health } = useSWR<SystemHealth>(`${API_URL}/system/health`, fetcher, { refreshInterval: 2000 });
   const { data: logs } = useSWR<SystemLog[]>(showConsole ? `${API_URL}/system/logs` : null, fetcher, { refreshInterval: 1000 });
 
-  const isHealthy = health ? (health.api === "UP" && health.db === "UP" && health.rabbitmq === "UP" && health.worker === "UP") : true;
+  const isHealthy = health ? (health.api === "UP" && health.db === "UP" && health.rabbitmq === "UP" && health.worker === "UP" && health.scheduler === "UP") : true;
   const isUp = (status?: string) => status === "UP";
 
   const spawnJob = async (count = 1) => {
@@ -294,7 +297,7 @@ export default function Dashboard() {
         {/* Header Section */}
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 border-b border-slate-800 pb-6 relative">
           <div className="flex items-center gap-3">
-            <img src="/logo.svg" alt="TaskForge Logo" className="w-10 h-10 md:w-12 md:h-12 shrink-0 drop-shadow-md shadow-black/20" />
+            <Image src="/logo.svg" alt="TaskForge Logo" width={48} height={48} className="w-10 h-10 md:w-12 md:h-12 shrink-0 drop-shadow-md shadow-black/20" />
             <div>
               <h1 className="text-xl md:text-2xl font-semibold tracking-tight text-white">TaskForge Observer</h1>
               <p className="text-xs md:text-sm text-slate-400 mt-0.5">Real-time distributed queue visualization</p>
@@ -343,7 +346,8 @@ export default function Dashboard() {
                           { label: 'API Server', icon: Server, status: health.api },
                           { label: 'PostgreSQL DB', icon: Database, status: health.db },
                           { label: 'RabbitMQ Cluster', icon: ServerCog, status: health.rabbitmq },
-                          { label: 'Worker Node', icon: Cpu, status: health.worker }
+                          { label: 'Worker Node', icon: Cpu, status: health.worker },
+                          { label: 'Scheduler', icon: Timeline, status: health.scheduler }
                         ].map(item => (
                           <div key={item.label} className="flex items-center justify-between p-3 bg-[#181b21] rounded-lg border border-slate-800/60 transition-all">
                             <div className="flex items-center gap-2">
@@ -429,11 +433,10 @@ export default function Dashboard() {
                     <span className="text-slate-500 shrink-0">
                       {new Date(log.created_at).toLocaleTimeString([], { hour12: false, fractionalSecondDigits: 3 })}
                     </span>
-                    <span className={`shrink-0 w-12 font-bold ${
-                      log.level === 'ERROR' ? 'text-rose-400' :
-                      log.level === 'WARN' ? 'text-amber-400' :
-                      'text-emerald-400'
-                    }`}>
+                    <span className={`shrink-0 w-12 font-bold ${log.level === 'ERROR' ? 'text-rose-400' :
+                        log.level === 'WARN' ? 'text-amber-400' :
+                          'text-emerald-400'
+                      }`}>
                       {log.level}
                     </span>
                     <span className="shrink-0 w-24 text-indigo-300 truncate" title={log.source}>
@@ -455,7 +458,7 @@ export default function Dashboard() {
             const Icon = col.icon;
 
             return (
-              <div 
+              <div
                 key={col.id}
                 onClick={() => {
                   document.getElementById(`col-${col.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
@@ -493,7 +496,7 @@ export default function Dashboard() {
                     {columnJobs.length}
                   </span>
                 </div>
-                
+
                 <div className="flex-1 overflow-y-auto p-3 space-y-3">
                   {columnJobs.map((job) => (
                     <div
