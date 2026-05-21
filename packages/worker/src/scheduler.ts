@@ -80,7 +80,7 @@ const resetStaleLeases = async () => {
   }
 };
 
-const sweepJobs = async () => {
+export const sweepJobs = async () => {
   logger.info("Taskforge Scheduler sweeping...");
 
   if (isShuttingDown) return;
@@ -161,7 +161,7 @@ export const startScheduler = async () => {
 };
 
 /* Graceful shutdown */
-const shutdown = async (signal: string) => {
+export const shutdownScheduler = async (signal: string) => {
   logger.info(`Received ${signal}. Stopping Scheduler sweeps...`);
   isShuttingDown = true;
 
@@ -176,14 +176,14 @@ const shutdown = async (signal: string) => {
     await pool.end();
 
     logger.info("Scheduler Shutdown complete!");
-    process.exit(0);
+    if (process.env.NODE_ENV !== "test") process.exit(0);
   } catch (error) {
     logger.error("Error closing RabbitMQ connection:", error);
-    process.exit(1);
+    if (process.env.NODE_ENV !== "test") process.exit(1);
   }
 };
 
-process.on("SIGTERM", () => shutdown("SIGTERM"));
-process.on("SIGINT", () => shutdown("SIGINT"));
+process.on("SIGTERM", () => shutdownScheduler("SIGTERM"));
+process.on("SIGINT", () => shutdownScheduler("SIGINT"));
 
 startScheduler();

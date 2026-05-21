@@ -1,0 +1,67 @@
+name: TaskForge CI
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  integration-tests:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_USER: taskforge
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: taskforge_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+          
+      rabbitmq:
+        image: rabbitmq:3-management-alpine
+        env:
+          RABBITMQ_DEFAULT_USER: guest
+          RABBITMQ_DEFAULT_PASS: guest
+        ports:
+          - 5672:5672
+          - 15672:15672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgres://taskforge:password@localhost:5433/taskforge_test
+      RABBITMQ_URL: amqp://guest:guest@localhost:5672
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          
+      - name: Initialize Database Schema
+        run: |
+          sudo apt-get update && sudo apt-get install -y postgresql-client
+          PGPASSWORD=password psql -h localhost -p 5433 -U taskforge -d taskforge_test -f infrastructure/postgres/init.sql
+
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Build Monorepo
+        run: npm run build
+        
+      - name: Run Integration Tests
+        run: npm run test
