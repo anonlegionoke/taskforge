@@ -1,4 +1,5 @@
-import { initRabbitMQ, pool, logJobEvent } from "@taskforge/shared";
+import { initRabbitMQ, pool, logJobEvent, SystemLogger } from "@taskforge/shared";
+const logger = new SystemLogger("WORKER");
 import { processJob } from "./processor";
 import os from "node:os";
 import type { ChannelModel, ConfirmChannel, ConsumeMessage } from "amqplib";
@@ -30,7 +31,7 @@ const startJobHeartbeat = (jobId: string) => {
         [jobId, WORKER_ID],
       )
       .catch((error) => {
-        console.error(`Failed to heartbeat job ${jobId}:`, error);
+        logger.error(`Failed to heartbeat job ${jobId}:`, error);
       });
   }, HEARTBEAT_INTERVAL_MS);
 
@@ -51,12 +52,12 @@ const setupRabbitMQConsumer = async () => {
 
     connection.on("close", () => {
       if (!isShuttingDown) {
-        console.error("Worker lost RabbitMQ connection. Reconnecting in 5s...");
+        logger.error("Worker lost RabbitMQ connection. Reconnecting in 5s...");
         setTimeout(setupRabbitMQConsumer, 5000);
       }
     });
 
-    console.log("Listening for job on queue:", MAIN_QUEUE);
+    logger.info("Listening for job on queue:", MAIN_QUEUE);
 
     const consumeResult = await channel.consume(MAIN_QUEUE, async (msg: ConsumeMessage | null) => {
       if (!msg) return;
@@ -94,7 +95,7 @@ const setupRabbitMQConsumer = async () => {
         const job = dbResult.rows[0];
 
         if (!jobId) {
-          console.warn(`Job ${jobId} not found, not queued, or not due. Skipping.`);
+          logger.warn(`Job ${jobId} not found, not queued, or not due. Skipping.`);
           channel.ack(msg);
           return;
         }
@@ -102,7 +103,7 @@ const setupRabbitMQConsumer = async () => {
         await logJobEvent(jobId, WORKER_ID, "CLAIMED");
 
         if (job.type === "chaos_crash_worker") {
-          console.error("CRITICAL: Chaos crash triggered! Worker process exiting unexpectedly...");
+          logger.error("CRITICAL: Chaos crash triggered! Worker process exiting unexpectedly...");
           setTimeout(() => process.exit(1), 100);
           return; // Intentionally don't ack to simulate ungraceful crash
         }
@@ -126,18 +127,18 @@ const setupRabbitMQConsumer = async () => {
 
         await logJobEvent(jobId, WORKER_ID, "SUCCESS");
 
-        console.log(`SUCCESS: Job ${jobId} completed Successfully.`);
+        logger.info(`SUCCESS: Job ${jobId} completed Successfully.`);
         channel.ack(msg);
       } catch (error) {
         if (!jobId) {
-          console.error("Invalid job message. Sending to DLQ:", (error as Error).message);
+          logger.error("Invalid job message. Sending to DLQ:", (error as Error).message);
           channel.nack(msg, false, false);
           return;
         }
 
         const errorMessage = (error as Error).message;
 
-        console.error(`Failed to process job ${jobId}:`, errorMessage);
+        logger.error(`Failed to process job ${jobId}:`, errorMessage);
 
         await logJobEvent(jobId, WORKER_ID, "ERROR", errorMessage);
 
@@ -150,7 +151,7 @@ const setupRabbitMQConsumer = async () => {
         const jobState = dbResult.rows[0];
 
         if (!jobState) {
-          console.warn(`Job ${jobId} disappeared while handling failure. Dropping message.`);
+          logger.warn(`Job ${jobId} disappeared while handling failure. Dropping message.`);
           await logJobEvent(jobId, WORKER_ID, "DLQ_SENT", "Job disappeared from DB");
           channel.ack(msg);
           return;
@@ -162,7 +163,7 @@ const setupRabbitMQConsumer = async () => {
           // Exponential Backoff
           const delaySeconds = Math.pow(2, currentAttempts) * 5;
 
-          console.warn(
+          logger.warn(
             `Job ${jobId} failed. Retrying in ${delaySeconds}s... (Attempt ${currentAttempts} of ${jobState.max_attempts})`,
           );
 
@@ -180,7 +181,7 @@ const setupRabbitMQConsumer = async () => {
 
           channel.ack(msg);
         } else {
-          console.error(
+          logger.error(
             `Job ${jobId} permanently failed after ${jobState.max_attempts} attempts. Sending to DLQ.`,
           );
 
@@ -204,7 +205,7 @@ const setupRabbitMQConsumer = async () => {
 
     consumerTag = consumeResult.consumerTag;
   } catch (error) {
-    console.error("Failed to setup RabbitMQ consumer:", error);
+    logger.error("Failed to setup RabbitMQ consumer:", error);
     if (!isShuttingDown) {
       setTimeout(setupRabbitMQConsumer, 5000);
     }
@@ -212,34 +213,31 @@ const setupRabbitMQConsumer = async () => {
 };
 
 export const startConsumer = async () => {
-  import("@taskforge/shared").then((m) => m.captureLogs("WORKER"));
   try {
-    console.log("Starting Taskforge worker...");
-
-    // Test DB
+    logger.info("Starting Taskforge worker...");
     await pool.query("SELECT 1");
-    console.log("SUCCESS: DB Connected");
+    logger.info("SUCCESS: DB Connected");
 
     await setupRabbitMQConsumer();
   } catch (error) {
-    console.error("FAILED: Fatal error during worker startup", error);
+    logger.error("FAILED: Fatal error during worker startup", error);
     process.exit(1);
   }
 };
 
 /* Graceful shutdown */
 export const shutdownConsumer = async (signal: string) => {
-  console.log(`Received ${signal}. Starting graceful shutdown...`);
+  logger.info(`Received ${signal}. Starting graceful shutdown...`);
   isShuttingDown = true;
 
   // Stopping new messages
   if (rabbitChannel && consumerTag) {
-    console.log("Cancelling RabbitMQ consumer...");
+    logger.info("Cancelling RabbitMQ consumer...");
     await rabbitChannel.cancel(consumerTag);
   }
 
   if (activeJobs > 0) {
-    console.log(`Waiting for ${activeJobs} active job(s) to finish...`);
+    logger.info(`Waiting for ${activeJobs} active job(s) to finish...`);
     const deadline = Date.now() + SHUTDOWN_TIMEOUT_MS;
 
     while (activeJobs > 0 && Date.now() < deadline) {
@@ -247,23 +245,23 @@ export const shutdownConsumer = async (signal: string) => {
     }
 
     if (activeJobs > 0) {
-      console.warn(
+      logger.warn(
         `Shutdown timeout reached with ${activeJobs} active job(s). Closing RabbitMQ so unacked messages can be redelivered.`,
       );
     }
   }
 
-  console.log("All jobs finished. Closing connections...");
+  logger.info("All jobs finished. Closing connections...");
 
   try {
     if (rabbitChannel) await rabbitChannel.close();
     if (rabbitConnection) await rabbitConnection.close();
     await pool.end();
     const exitCode = activeJobs === 0 ? 0 : 1;
-    console.log("SUCCESS: Shutdown Complete!");
+    logger.info("SUCCESS: Worker shutdown complete.");
     process.exit(exitCode);
   } catch (error) {
-    console.error("FAILED: Error during shutdown:", error);
+    logger.error("FAILED: Error during shutdown:", error);
     process.exit(1);
   }
 };

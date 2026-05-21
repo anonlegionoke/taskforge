@@ -72,7 +72,7 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_jobs_status_run_at_created_at ON jobs(status, run_at, created_at);
     CREATE INDEX IF NOT EXISTS idx_jobs_status_locked_at ON jobs(status, locked_at);
     CREATE INDEX IF NOT EXISTS idx_job_logs_job_id ON job_logs(job_id);
-    CREATE INDEX IF NOT EXISTS idx_system_logs_created_at ON system_logs(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_system_logs_source_level_created ON system_logs(source, level, created_at DESC);
 
     CREATE OR REPLACE FUNCTION set_updated_at()
     RETURNS TRIGGER AS $trigger$

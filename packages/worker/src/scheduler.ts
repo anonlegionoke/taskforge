@@ -1,5 +1,5 @@
 import "./config";
-import { initRabbitMQ, pool, logJobEvent } from "@taskforge/shared";
+import { initRabbitMQ, pool, logJobEvent, SystemLogger } from "@taskforge/shared";
 import os from "node:os";
 import type { ChannelModel } from "amqplib";
 
@@ -10,6 +10,8 @@ const SCHEDULER_ID =
   process.env.SCHEDULER_ID ??
   process.env.INSTANCE_ID ??
   `scheduler-${os.hostname()}-${process.pid}`;
+
+const logger = new SystemLogger("SCHEDULER");
 
 let isShuttingDown: boolean = false;
 let rabbitChannel: Awaited<ReturnType<typeof initRabbitMQ>>["channel"] | null = null;
@@ -72,18 +74,21 @@ const resetStaleLeases = async () => {
     const resetCount = rows.filter((row) => row.status === "PENDING").length;
     const failedCount = rows.filter((row) => row.status === "FAILED").length;
 
-    console.warn(
+    logger.warn(
       `Recovered ${staleQueuedJobs.rows.length} stale queued job(s), ${resetCount} stale running job(s); marked ${failedCount} job(s) FAILED.`,
     );
   }
 };
 
 const sweepJobs = async () => {
-  console.log("Taskforge Scheduler sweeping...");
+  logger.info("Taskforge Scheduler sweeping...");
 
   if (isShuttingDown) return;
 
   try {
+    // Purge old logs to bound the system_logs table
+    await pool.query("DELETE FROM system_logs WHERE created_at < NOW() - INTERVAL '24 hours'");
+
     await resetStaleLeases();
 
     const { rows } = await pool.query<{ id: string; run_at: Date; created_at: Date }>(
@@ -108,7 +113,7 @@ const sweepJobs = async () => {
     );
 
     if (rows.length > 0) {
-      console.log(`Scheduler swept ${rows.length} ripe jobs. Pushing to RabbitMQ...`);
+      logger.info(`Scheduler swept ${rows.length} ripe jobs. Pushing to RabbitMQ...`);
 
       // For strict FIFO scheduling
       rows.sort(
@@ -128,7 +133,7 @@ const sweepJobs = async () => {
       await channel.waitForConfirms();
     }
   } catch (error) {
-    console.error("Scheduler sweep failed:", error);
+    logger.error("Scheduler sweep failed:", error);
   } finally {
     if (!isShuttingDown) {
       sweepTimeout = setTimeout(() => sweepJobs(), POLL_INTERVAL_MS);
@@ -137,28 +142,27 @@ const sweepJobs = async () => {
 };
 
 export const startScheduler = async () => {
-  import("@taskforge/shared").then((m) => m.captureLogs("SCHEDULER"));
   try {
-    console.log("Starting Taskforge Scheduler...");
+    logger.info("Starting Taskforge Scheduler...");
     await pool.query("SELECT 1");
     const { channel, connection } = await initRabbitMQ();
     rabbitChannel = channel;
     rabbitConnection = connection;
 
-    console.log(
+    logger.info(
       `SUCCESS: Taskforge Scheduler running. Sweeping every ${POLL_INTERVAL_MS / 1000} seconds...`,
     );
 
     sweepJobs();
   } catch (error) {
-    console.log("FAILED: Fatal error starting scheduler:", error);
+    logger.error("FAILED: Fatal error starting scheduler:", error);
     process.exit(1);
   }
 };
 
 /* Graceful shutdown */
 const shutdown = async (signal: string) => {
-  console.log(`Received ${signal}. Stopping Scheduler sweeps...`);
+  logger.info(`Received ${signal}. Stopping Scheduler sweeps...`);
   isShuttingDown = true;
 
   // Clear the timeout so it doesn't trigger another sweep
@@ -171,10 +175,10 @@ const shutdown = async (signal: string) => {
     if (rabbitConnection) await rabbitConnection.close();
     await pool.end();
 
-    console.log("SUCCESS: Scheduler shutdown complete.");
+    logger.info("Scheduler Shutdown complete!");
     process.exit(0);
   } catch (error) {
-    console.error("FAILED: Error during scheduler shutdown:", error);
+    logger.error("Error closing RabbitMQ connection:", error);
     process.exit(1);
   }
 };
