@@ -1,4 +1,7 @@
 import { connect, type ChannelModel, type ConfirmChannel } from "amqplib";
+import { SystemLogger } from "./logger";
+
+const logger = new SystemLogger("RABBITMQ");
 
 let connection: ChannelModel | null = null;
 let channel: ConfirmChannel | null = null;
@@ -68,28 +71,28 @@ const connectRabbitMQ = async (): Promise<{ channel: ConfirmChannel; connection:
     channel = ch;
 
     conn.on("error", (err) => {
-      console.error("RabbitMQ connection error", err);
+      logger.error("RabbitMQ connection error", err);
     });
 
     conn.on("close", () => {
       clearConnectionState(conn, ch);
-      console.error("RabbitMQ connection closed. Call initRabbitMQ() to reconnect.");
+      logger.error("RabbitMQ connection closed. Call initRabbitMQ() to reconnect.");
     });
 
     ch.on("error", (err) => {
-      console.error("RabbitMQ channel error", err);
+      logger.error("RabbitMQ channel error", err);
     });
 
     ch.on("close", () => {
       clearChannelState(ch);
-      console.error("RabbitMQ channel closed.");
+      logger.error("RabbitMQ channel closed.");
     });
 
-    console.log("SUCCESS: RabbitMQ connected and queue initialized");
+    logger.info("SUCCESS: RabbitMQ connected and queue initialized");
 
     return { channel: ch, connection: conn };
   } catch (error) {
-    console.error("Failed to connect to RabbitMQ: ", error);
+    logger.error("Failed to connect to RabbitMQ: ", error);
     clearConnectionState();
     throw error;
   }

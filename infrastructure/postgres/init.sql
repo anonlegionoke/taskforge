@@ -65,4 +65,4 @@ CREATE TABLE system_logs (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
-CREATE INDEX idx_system_logs_created_at ON system_logs(created_at DESC);
+CREATE INDEX idx_system_logs_source_level_created ON system_logs(source, level, created_at DESC);

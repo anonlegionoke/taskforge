@@ -1,5 +1,7 @@
 import { Router } from "express";
-import { pool, logJobEvent } from "@taskforge/shared";
+import { pool, logJobEvent, SystemLogger } from "@taskforge/shared";
+
+const logger = new SystemLogger("API_ROUTE");
 
 export const jobRouter = Router();
 export const systemRouter = Router();
@@ -20,7 +22,7 @@ jobRouter.get("/stats", async (req, res) => {
 
     return res.status(200).json(stats);
   } catch (error) {
-    console.error("Error fetching stats:", error);
+    logger.error("Error fetching stats:", error);
     return res.status(500).json({ error: "Internal Server Error" });
   }
 });
@@ -42,7 +44,7 @@ jobRouter.get("/:id/logs", async (req, res) => {
 
     return res.status(200).json(rows);
   } catch (error) {
-    console.error(`Error fetching logs for job ${id}:`, error);
+    logger.error(`Error fetching logs for job ${id}:`, error);
     return res.status(500).json({ error: "Internal Server Error" });
   }
 });
@@ -58,7 +60,7 @@ jobRouter.get("/", async (req, res) => {
     `);
     return res.status(200).json(rows);
   } catch (error) {
-    console.error("Error fetching jobs:", error);
+    logger.error("Error fetching jobs:", error);
     return res.status(500).json({ error: "Internal Server Error" });
   }
 });
@@ -71,7 +73,7 @@ systemRouter.get("/logs", async (req, res) => {
     );
     return res.status(200).json(rows);
   } catch (error) {
-    console.error("Error fetching system logs:", error);
+    logger.error("Error fetching system logs:", error);
     return res.status(500).json({ error: "Internal Server Error" });
   }
 });
@@ -159,7 +161,7 @@ jobRouter.post("/", async (req, res) => {
 
     const job = jobResult.rows[0];
     await logJobEvent(job.id, "API", "SCHEDULED");
-    console.log("SUCCESS: Job scheduled: ", job.id);
+    logger.info("SUCCESS: Job scheduled: ", job.id);
 
     return res.status(202).json({
       message: "Job scheduled for processing",
@@ -167,7 +169,7 @@ jobRouter.post("/", async (req, res) => {
       runAt: job.run_at,
     });
   } catch (error) {
-    console.error("Error ingesting job:", error);
-    return res.status(500).json({ error: "Internal Server Error" });
+    logger.error("Error ingesting job:", error);
+    return res.status(500).json({ error: "Failed to queue job" });
   }
 });

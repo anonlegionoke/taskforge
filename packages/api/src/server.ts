@@ -1,48 +1,49 @@
-import { pool, captureLogs } from "@taskforge/shared";
+import { pool, SystemLogger } from "@taskforge/shared";
 import { Server } from "http";
 import app from "./app";
 
 const PORT = process.env.API_SERVER_PORT || 3000;
 let server: Server;
 
+const logger = new SystemLogger("API_SERVER");
+
 // Boot Sequence
 export const startAPIServer = async () => {
-  captureLogs("API_SERVER");
   try {
-    console.log("Starting Taskforge API Server...");
+    logger.info("Starting Taskforge API Server...");
 
     // Test DB
     await pool.query("SELECT 1");
-    console.log("SUCCESS: DB connected.");
+    logger.info("SUCCESS: DB connected.");
 
     server = app.listen(PORT, () => {
-      console.log("SUCCESS: Taskforge API listening on port:", PORT);
+      logger.info("SUCCESS: Taskforge API listening on port:", PORT);
     });
   } catch (error) {
-    console.error("FAILED: Fatal error during startup", error);
+    logger.error("FAILED: Fatal error during startup", error);
     process.exit(1);
   }
 };
 
 /* Graceful shutdown */
 export const shutdownAPIServer = async (signal: string) => {
-  console.log(`Received ${signal}. Starting API shutdown...`);
+  logger.info(`Received ${signal}. Starting API shutdown...`);
 
   if (server) {
-    console.log("Refusing new HTTP requests and draining active ones...");
+    logger.info("Refusing new HTTP requests and draining active ones...");
 
     server.close(async (error) => {
       if (error) {
-        console.error("Error while closing express server:", error);
+        logger.error("Error while closing express server:", error);
       }
 
       try {
-        console.log("Closing Database connections...");
+        logger.info("Closing Database connections...");
         await pool.end();
-        console.log("API Shutdown complete!");
+        logger.info("API Shutdown complete!");
         process.exit(0);
       } catch (dbError) {
-        console.error("Error closing Postgres pool:", dbError);
+        logger.error("Error closing Postgres pool:", dbError);
         process.exit(1);
       }
     });
