@@ -8,6 +8,7 @@
         "dotenv": "^17.4.2"
     },
     "scripts": {
+        "test": "vitest",
         "dev": "tsx src/index.ts",
         "dev:scheduler": "tsx src/scheduler.ts"
     },

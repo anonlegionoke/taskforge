@@ -259,9 +259,9 @@ export const shutdownConsumer = async (signal: string) => {
     await pool.end();
     const exitCode = activeJobs === 0 ? 0 : 1;
     logger.info("SUCCESS: Worker shutdown complete.");
-    process.exit(exitCode);
+    if (process.env.NODE_ENV !== "test") process.exit(exitCode);
   } catch (error) {
     logger.error("FAILED: Error during shutdown:", error);
-    process.exit(1);
+    if (process.env.NODE_ENV !== "test") process.exit(1);
   }
 };
