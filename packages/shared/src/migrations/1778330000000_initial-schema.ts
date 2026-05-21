@@ -57,10 +57,19 @@ export async function up(pgm: MigrationBuilder): Promise<void> {
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
 
+    CREATE TABLE IF NOT EXISTS system_logs (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      source VARCHAR(255) NOT NULL,
+      level VARCHAR(50) NOT NULL,
+      message TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+
     CREATE INDEX IF NOT EXISTS idx_jobs_status_run_at ON jobs(status, run_at);
     CREATE INDEX IF NOT EXISTS idx_jobs_status_run_at_created_at ON jobs(status, run_at, created_at);
     CREATE INDEX IF NOT EXISTS idx_jobs_status_locked_at ON jobs(status, locked_at);
     CREATE INDEX IF NOT EXISTS idx_job_logs_job_id ON job_logs(job_id);
+    CREATE INDEX IF NOT EXISTS idx_system_logs_created_at ON system_logs(created_at DESC);
 
     CREATE OR REPLACE FUNCTION set_updated_at()
     RETURNS TRIGGER AS $trigger$
@@ -82,6 +91,7 @@ export async function down(pgm: MigrationBuilder): Promise<void> {
   pgm.sql(`
     DROP TRIGGER IF EXISTS jobs_set_updated_at ON jobs;
     DROP FUNCTION IF EXISTS set_updated_at();
+    DROP TABLE IF EXISTS system_logs;
     DROP TABLE IF EXISTS job_logs;
     DROP TABLE IF EXISTS jobs;
     DROP TYPE IF EXISTS job_status;

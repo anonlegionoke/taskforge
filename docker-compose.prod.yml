@@ -16,8 +16,7 @@ services:
 
   api:
     build: .
-    container_name: taskforge-api
-    command: npm run dev:api
+    command: node dist/packages/api/src/index.js
     ports:
       - "3000:3000"
     environment:
@@ -26,29 +25,39 @@ services:
     depends_on:
       rabbitmq:
         condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
 
   worker:
     build: .
-    container_name: taskforge-worker
     restart: always
-    command: npm run dev:worker
+    command: node dist/packages/worker/src/index.js
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - RABBITMQ_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
     depends_on:
       rabbitmq:
         condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
 
   scheduler:
     build: .
-    container_name: taskforge-scheduler
-    command: npm run dev:scheduler
+    command: node dist/packages/worker/src/scheduler.js
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - RABBITMQ_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
     depends_on:
       rabbitmq:
         condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+
+  db-migrate:
+    build: .
+    command: npm run db:migrate
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
 
 networks:
   default:
