@@ -9,7 +9,8 @@
         "build": "tsc && npm run build --workspace=frontend",
         "dev:api": "npm run dev --workspace=@taskforge/api",
         "dev:worker": "npm run dev --workspace=@taskforge/worker",
-        "dev:scheduler": "npm run dev:scheduler --workspace=@taskforge/worker"
+        "dev:scheduler": "npm run dev:scheduler --workspace=@taskforge/worker",
+        "db:migrate": "npm run migrate:prod --workspace=@taskforge/shared"
     },
     "devDependencies": {
         "@types/node": "25.6.0",

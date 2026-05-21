@@ -70,7 +70,7 @@ interface JobColumn {
   border: string;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3000";
+const API_URL = process.env.NEXT_PUBLIC_API_URL;
 const fetcher = async (url: string) => {
   const response = await fetch(url);
 
