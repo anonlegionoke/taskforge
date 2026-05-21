@@ -12,7 +12,7 @@
 
 TaskForge is a distributed job scheduler capable of handling job creation, execution, retries, and failures across horizontally scaled worker nodes. It comes equipped with a **real-time, Kanban-style Observer Dashboard** that visualizes system health, job queues, and live event logs.
 
-Built as a portfolio piece, TaskForge intentionally implements "Chaos Engineering" features, allowing you to forcefully crash worker nodes to observe the system's robust auto-recovery and idempotency mechanisms in action.
+TaskForge intentionally implements "Chaos Engineering" features, allowing you to forcefully crash worker nodes to observe the system's robust auto-recovery and idempotency mechanisms in action.
 
 ## Key Features
 
