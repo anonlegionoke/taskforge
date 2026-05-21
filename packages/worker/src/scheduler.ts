@@ -62,7 +62,7 @@ const resetStaleLeases = async () => {
   }
 };
 
-const sweepJobs = async (channel: Awaited<ReturnType<typeof initRabbitMQ>>["channel"]) => {
+const sweepJobs = async () => {
   console.log("Taskforge Scheduler sweeping...");
 
   if (isShuttingDown) return;
@@ -94,6 +94,9 @@ const sweepJobs = async (channel: Awaited<ReturnType<typeof initRabbitMQ>>["chan
     if (rows.length > 0) {
       console.log(`Scheduler swept ${rows.length} ripe jobs. Pushing to RabbitMQ...`);
 
+      const { channel } = await initRabbitMQ();
+      rabbitChannel = channel;
+
       for (const row of rows) {
         channel.sendToQueue(MAIN_QUEUE, Buffer.from(JSON.stringify({ jobId: row.id })), {
           persistent: true,
@@ -106,7 +109,7 @@ const sweepJobs = async (channel: Awaited<ReturnType<typeof initRabbitMQ>>["chan
     console.error("Scheduler sweep failed:", error);
   } finally {
     if (!isShuttingDown) {
-      sweepTimeout = setTimeout(() => sweepJobs(channel), POLL_INTERVAL_MS);
+      sweepTimeout = setTimeout(() => sweepJobs(), POLL_INTERVAL_MS);
     }
   }
 };
@@ -124,7 +127,7 @@ export const startScheduler = async () => {
       `SUCCESS: Taskforge Scheduler running. Sweeping every ${POLL_INTERVAL_MS / 1000} seconds...`,
     );
 
-    sweepJobs(channel);
+    sweepJobs();
   } catch (error) {
     console.log("FAILED: Fatal error starting scheduler:", error);
     process.exit(1);

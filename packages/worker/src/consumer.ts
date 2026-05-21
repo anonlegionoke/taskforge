@@ -54,19 +54,21 @@ const logJobEvent = async (
   }
 };
 
-export const startConsumer = async () => {
-  import("@taskforge/shared").then((m) => m.captureLogs("WORKER"));
+const setupRabbitMQConsumer = async () => {
+  if (isShuttingDown) return;
+
   try {
-    console.log("Starting Taskforge worker...");
-
-    // Test DB
-    await pool.query("SELECT 1");
-    console.log("SUCCESS: DB Connected");
-
     // Initialize RabbitMQ
     const { channel, connection } = await initRabbitMQ();
     rabbitChannel = channel;
     rabbitConnection = connection;
+
+    connection.on("close", () => {
+      if (!isShuttingDown) {
+        console.error("Worker lost RabbitMQ connection. Reconnecting in 5s...");
+        setTimeout(setupRabbitMQConsumer, 5000);
+      }
+    });
 
     console.log("Listening for job on queue:", MAIN_QUEUE);
 
@@ -211,6 +213,24 @@ export const startConsumer = async () => {
     });
 
     consumerTag = consumeResult.consumerTag;
+  } catch (error) {
+    console.error("Failed to setup RabbitMQ consumer:", error);
+    if (!isShuttingDown) {
+      setTimeout(setupRabbitMQConsumer, 5000);
+    }
+  }
+};
+
+export const startConsumer = async () => {
+  import("@taskforge/shared").then((m) => m.captureLogs("WORKER"));
+  try {
+    console.log("Starting Taskforge worker...");
+
+    // Test DB
+    await pool.query("SELECT 1");
+    console.log("SUCCESS: DB Connected");
+
+    await setupRabbitMQConsumer();
   } catch (error) {
     console.error("FAILED: Fatal error during worker startup", error);
     process.exit(1);
