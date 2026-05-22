@@ -1,7 +1,6 @@
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: taskforge-postgres
     environment:
       POSTGRES_USER: ${DATABASE_USER:-taskforge}
       POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-password}
@@ -19,7 +18,6 @@ services:
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
-    container_name: taskforge-rabbitmq
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
@@ -33,7 +31,9 @@ services:
       retries: 5
 
   api:
-    build: .
+    build: 
+      context: .
+      target: builder
     command: npm run dev:api
     ports:
       - "3000:3000"
@@ -49,7 +49,9 @@ services:
         condition: service_completed_successfully
 
   worker:
-    build: .
+    build: 
+      context: .
+      target: builder
     restart: always
     command: npm run dev:worker
     environment:
@@ -64,7 +66,9 @@ services:
         condition: service_completed_successfully
 
   scheduler:
-    build: .
+    build: 
+      context: .
+      target: builder
     command: npm run dev:scheduler
     environment:
       - DATABASE_URL=postgres://${DATABASE_USER:-taskforge}:${DATABASE_PASSWORD:-password}@postgres:5432/${DATABASE_NAME:-taskforge}
@@ -78,7 +82,9 @@ services:
         condition: service_completed_successfully
 
   db-migrate:
-    build: .
+    build: 
+      context: .
+      target: builder
     command: npm run db:migrate
     environment:
       - DATABASE_URL=postgres://${DATABASE_USER:-taskforge}:${DATABASE_PASSWORD:-password}@postgres:5432/${DATABASE_NAME:-taskforge}

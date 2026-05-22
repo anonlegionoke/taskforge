@@ -1,7 +1,6 @@
 services:
   rabbitmq:
     image: rabbitmq:3-management-alpine
-    container_name: taskforge-rabbitmq
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
@@ -16,7 +15,7 @@ services:
 
   api:
     build: .
-    command: node dist/packages/api/src/index.js
+    command: node dist/api/index.js
     ports:
       - "3000:3000"
     environment:
@@ -31,7 +30,7 @@ services:
   worker:
     build: .
     restart: always
-    command: node dist/packages/worker/src/index.js
+    command: node dist/worker/index.js
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - RABBITMQ_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
@@ -43,7 +42,7 @@ services:
 
   scheduler:
     build: .
-    command: node dist/packages/worker/src/scheduler.js
+    command: node dist/worker/scheduler.js
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - RABBITMQ_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672

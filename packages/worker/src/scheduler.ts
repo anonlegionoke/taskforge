@@ -3,7 +3,7 @@ import { initRabbitMQ, pool, logJobEvent, SystemLogger } from "@taskforge/shared
 import os from "node:os";
 import type { ChannelModel } from "amqplib";
 
-const MAIN_QUEUE = "taskforge.queue.jobs";
+const MAIN_QUEUE = process.env.RABBITMQ_QUEUE!;
 const POLL_INTERVAL_MS = 5000;
 const LOCK_TIMEOUT = "15 minutes";
 const SCHEDULER_ID =
@@ -96,8 +96,7 @@ export const sweepJobs = async () => {
             UPDATE jobs
             SET status = 'PROCESSING',
                 locked_at = NOW(),
-                locked_by = $2,
-                updated_at = NOW()
+                locked_by = $2
             WHERE id IN (
                 SELECT id FROM jobs
                 WHERE status = 'PENDING'
@@ -183,7 +182,8 @@ export const shutdownScheduler = async (signal: string) => {
   }
 };
 
-process.on("SIGTERM", () => shutdownScheduler("SIGTERM"));
-process.on("SIGINT", () => shutdownScheduler("SIGINT"));
-
-startScheduler();
+if (process.env.NODE_ENV !== "test") {
+  process.on("SIGTERM", () => shutdownScheduler("SIGTERM"));
+  process.on("SIGINT", () => shutdownScheduler("SIGINT"));
+  startScheduler();
+}

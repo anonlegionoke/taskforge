@@ -16,6 +16,7 @@ COPY packages/api/src ./packages/api/src
 COPY packages/worker/src ./packages/worker/src
 
 RUN npx tsc
+RUN npm run bundle
 
 # Runtime Stage
 FROM node:20-alpine

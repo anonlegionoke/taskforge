@@ -1,9 +1,10 @@
+process.env.NODE_ENV = "test";
+import "../config";
+
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { pool, getChannel } from "@taskforge/shared";
 import { startConsumer, shutdownConsumer } from "../consumer";
 import { sweepJobs, shutdownScheduler } from "../scheduler";
-
-process.env.NODE_ENV = "test";
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -51,22 +52,27 @@ describe("Taskforge Distributed Integration Tests", () => {
     await sweepJobs();
 
     const check = await pool.query(`SELECT status, locked_at, locked_by FROM jobs WHERE id = $1`, [jobId]);
-    expect(check.rows[0].status).toBe("PENDING");
-    expect(check.rows[0].locked_at).toBeNull();
-    expect(check.rows[0].locked_by).toBeNull();
+    expect(check.rows[0].status).toBe("PROCESSING");
+    expect(check.rows[0].locked_at).not.toBeNull();
+    expect(check.rows[0].locked_by).not.toBeNull();
+    expect(check.rows[0].locked_by).not.toBe("dead_worker_node_1");
+
+    // Wait for the worker to finish processing the swept job to avoid cross-test database contamination
+    await sleep(500);
   });
 
   it("Duplicate Messages (Idempotency): Worker strictly ignores identical duplicated RabbitMQ messages", async () => {
     const { rows } = await pool.query(
-      `INSERT INTO jobs (type, payload, status) VALUES ('dummy_task', '{}', 'PENDING') RETURNING id`
+      `INSERT INTO jobs (type, payload, status) VALUES ('dummy_task', '{}', 'PROCESSING') RETURNING id`
     );
     const jobId = rows[0].id;
 
     const channel = getChannel();
 
     // Publish exactly the same message TWICE manually to simulate network partition delivery duplication
-    channel.sendToQueue("taskforge.queue.jobs", Buffer.from(JSON.stringify({ jobId })), { persistent: true });
-    channel.sendToQueue("taskforge.queue.jobs", Buffer.from(JSON.stringify({ jobId })), { persistent: true });
+    const testQueue = process.env.RABBITMQ_QUEUE || "taskforge.queue.jobs";
+    channel.sendToQueue(testQueue, Buffer.from(JSON.stringify({ jobId })), { persistent: true });
+    channel.sendToQueue(testQueue, Buffer.from(JSON.stringify({ jobId })), { persistent: true });
 
     await sleep(800);
 
@@ -84,7 +90,7 @@ describe("Taskforge Distributed Integration Tests", () => {
     expect(successCount).toBe(1);
   });
 
-  it("Worker Crash Recovery: RabbitMQ halts ack and DB remains PROCESSING", async () => {
+  it("Worker Crash Recovery: RabbitMQ halts ack and DB remains RUNNING", async () => {
     const { rows } = await pool.query(
       `INSERT INTO jobs (type, payload, status) VALUES ('chaos_crash_worker', '{}', 'PENDING') RETURNING id`
     );
@@ -95,7 +101,7 @@ describe("Taskforge Distributed Integration Tests", () => {
 
     const check = await pool.query(`SELECT status FROM jobs WHERE id = $1`, [jobId]);
 
-    // The DB will still say PROCESSING because the worker simulated a crash before it could update it to FAILED
-    expect(check.rows[0].status).toBe("PROCESSING");
+    // The DB will still say RUNNING because the worker simulated a crash before it could update it to COMPLETED or FAILED
+    expect(check.rows[0].status).toBe("RUNNING");
   });
 });

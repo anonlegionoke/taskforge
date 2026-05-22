@@ -8,7 +8,10 @@
         "skipLibCheck": true,
         "forceConsistentCasingInFileNames": true,
         "outDir": "dist",
-        "rootDir": "."
+        "rootDir": ".",
+        "paths": {
+            "@taskforge/shared": ["./packages/shared/src/index.ts"]
+        }
     },
     "include": [
         "packages/api/src/**/*.ts",

@@ -9,7 +9,7 @@ let initialization: Promise<{ channel: ConfirmChannel; connection: ChannelModel 
 
 const dlx = "taskforge.dlx";
 const dlq = "taskforge.queue.dlq";
-const mainQueue = "taskforge.queue.jobs";
+const mainQueue = process.env.RABBITMQ_QUEUE || "taskforge.queue.jobs";
 
 const clearConnectionState = (conn?: ChannelModel, ch?: ConfirmChannel) => {
   if (!conn || connection === conn) {

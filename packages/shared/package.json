@@ -15,6 +15,7 @@
     "scripts": {
         "migrate:create": "node-pg-migrate --tsx --envPath ../../.env -m src/migrations -j ts create",
         "migrate:up": "node-pg-migrate --tsx --envPath ../../.env -m src/migrations -j ts up",
+        "migrate:test": "node-pg-migrate --tsx --envPath ../../.env.test -m src/migrations -j ts up",
         "migrate:prod": "node-pg-migrate -m ../../dist/packages/shared/src/migrations up"
     }
 }
