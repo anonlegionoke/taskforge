@@ -14,7 +14,7 @@ Then, start the development server for the dashboard:
 
 ```bash
 npm install
-npm run dev --workspace=frontend
+NEXT_PUBLIC_API_URL=http://localhost:3000 npm run dev --workspace=frontend
 ```
 
 The application will start on `http://localhost:3001` (or the next available port if 3000 is occupied by the API).

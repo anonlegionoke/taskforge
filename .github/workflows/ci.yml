@@ -41,6 +41,8 @@ jobs:
     env:
       DATABASE_URL: postgres://taskforge:password@localhost:5433/taskforge_test
       RABBITMQ_URL: amqp://guest:guest@localhost:5672
+      RABBITMQ_QUEUE: taskforge.queue.jobs.test
+      NEXT_PUBLIC_API_URL: http://localhost:3000
 
     steps:
       - name: Checkout code

@@ -9,7 +9,10 @@ let initialization: Promise<{ channel: ConfirmChannel; connection: ChannelModel 
 
 const dlx = "taskforge.dlx";
 const dlq = "taskforge.queue.dlq";
-const mainQueue = process.env.RABBITMQ_QUEUE || "taskforge.queue.jobs";
+if (!process.env.RABBITMQ_QUEUE) {
+  throw new Error("FATAL: RABBITMQ_QUEUE environment variable is missing.");
+}
+const mainQueue = process.env.RABBITMQ_QUEUE;
 
 const clearConnectionState = (conn?: ChannelModel, ch?: ConfirmChannel) => {
   if (!conn || connection === conn) {

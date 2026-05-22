@@ -26,5 +26,8 @@
         "test": {
             "exclude": ["dist/**", "node_modules/**"]
         }
+    },
+    "overrides": {
+        "postcss": "^8.5.10"
     }
 }
