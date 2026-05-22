@@ -4,7 +4,7 @@ import { processJob } from "./processor";
 import os from "node:os";
 import type { ChannelModel, ConfirmChannel, ConsumeMessage } from "amqplib";
 
-const MAIN_QUEUE = "taskforge.queue.jobs";
+const MAIN_QUEUE = process.env.RABBITMQ_QUEUE!;
 const WORKER_ID =
   process.env.WORKER_ID ?? process.env.INSTANCE_ID ?? `worker-${os.hostname()}-${process.pid}`;
 const HEARTBEAT_INTERVAL_MS = Number(process.env.WORKER_HEARTBEAT_INTERVAL_MS ?? 60_000);
@@ -24,8 +24,7 @@ const startJobHeartbeat = (jobId: string) => {
       .query(
         `UPDATE jobs
          SET locked_at = NOW(),
-             locked_by = $2,
-             updated_at = NOW()
+             locked_by = $2
          WHERE id = $1
            AND status = 'RUNNING'`,
         [jobId, WORKER_ID],
@@ -84,8 +83,7 @@ const setupRabbitMQConsumer = async () => {
            SET status = 'RUNNING',
                attempts = attempts + 1,
                locked_at = NOW(),
-               locked_by = $2,
-               updated_at = NOW()
+               locked_by = $2
            WHERE id = $1
              AND status = 'PROCESSING'
              AND run_at <= NOW()
@@ -94,7 +92,7 @@ const setupRabbitMQConsumer = async () => {
         );
         const job = dbResult.rows[0];
 
-        if (!jobId) {
+        if (!job) {
           logger.warn(`Job ${jobId} not found, not queued, or not due. Skipping.`);
           channel.ack(msg);
           return;
@@ -104,7 +102,9 @@ const setupRabbitMQConsumer = async () => {
 
         if (job.type === "chaos_crash_worker") {
           logger.error("CRITICAL: Chaos crash triggered! Worker process exiting unexpectedly...");
-          setTimeout(() => process.exit(1), 100);
+          if (process.env.NODE_ENV !== "test") {
+            setTimeout(() => process.exit(1), 100);
+          }
           return; // Intentionally don't ack to simulate ungraceful crash
         }
 

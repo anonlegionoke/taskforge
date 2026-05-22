@@ -38,8 +38,8 @@ CREATE TABLE job_logs (
 );
 
 
-CREATE INDEX idx_jobs_status_run_at_created_at ON jobs(status, run_at, created_at);
-CREATE INDEX idx_jobs_status_locked_at ON jobs(status, locked_at);
+CREATE INDEX idx_jobs_pending_run_at ON jobs(run_at) WHERE status = 'PENDING' OR status = 'PROCESSING';
+CREATE INDEX idx_jobs_running_locked_at ON jobs(locked_at) WHERE status = 'RUNNING';
 
 CREATE INDEX idx_job_logs_job_id ON job_logs(job_id);
 

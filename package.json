@@ -6,7 +6,9 @@
         "packages/*"
     ],
     "scripts": {
-        "test": "vitest run",
+        "test:setup": "tsx scripts/setup-test-db.ts && npm run migrate:test --workspace=@taskforge/shared",
+        "test": "npm run test:setup && vitest run --exclude 'dist/**'",
+        "bundle": "tsup packages/api/src/index.ts --out-dir dist/api --format cjs --clean && tsup packages/worker/src/index.ts packages/worker/src/scheduler.ts --out-dir dist/worker --format cjs --clean",
         "build": "tsc && npm run build --workspace=frontend",
         "dev:api": "npm run dev --workspace=@taskforge/api",
         "dev:worker": "npm run dev --workspace=@taskforge/worker",
@@ -15,8 +17,14 @@
     },
     "devDependencies": {
         "@types/node": "25.6.0",
+        "tsup": "^8.5.1",
         "tsx": "^4.21.0",
         "typescript": "6.0.3",
         "vitest": "^4.1.7"
+    },
+    "vitest": {
+        "test": {
+            "exclude": ["dist/**", "node_modules/**"]
+        }
     }
 }
