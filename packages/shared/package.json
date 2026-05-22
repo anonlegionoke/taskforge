@@ -1,6 +1,7 @@
 {
     "name": "@taskforge/shared",
     "version": "1.0.0",
+    "type": "module",
     "main": "src/index.ts",
     "types": "src/index.ts",
     "dependencies": {
@@ -13,9 +14,9 @@
         "@types/pg": "^8.20.0"
     },
     "scripts": {
-        "migrate:create": "node-pg-migrate --tsx --envPath ../../.env -m src/migrations -j ts create",
-        "migrate:up": "node-pg-migrate --tsx --envPath ../../.env -m src/migrations -j ts up",
-        "migrate:test": "node-pg-migrate --tsx --envPath ../../.env.test -m src/migrations -j ts up",
-        "migrate:prod": "node-pg-migrate -m ../../dist/packages/shared/src/migrations up"
+        "migrate:create": "tsx ../../node_modules/node-pg-migrate/bin/node-pg-migrate --envPath ../../.env -m src/migrations -j ts create",
+        "migrate:up": "tsx ../../node_modules/node-pg-migrate/bin/node-pg-migrate --envPath ../../.env -m src/migrations -j ts up",
+        "migrate:test": "tsx ../../node_modules/node-pg-migrate/bin/node-pg-migrate --envPath ../../.env.test -m src/migrations -j ts up",
+        "migrate:prod": "node-pg-migrate --envPath ../../.env -m ../../dist/packages/shared/src/migrations up"
     }
 }

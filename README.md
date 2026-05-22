@@ -5,7 +5,7 @@
 <h1 align="center">TaskForge</h1>
 
 <p align="center">
-  <strong>A production-grade, distributed job scheduler built to demonstrate resilient backend systems architecture and modern observability.</strong>
+  <strong>A production-grade, distributed job scheduler built to demonstrate resilient backend systems architecture and real-time dashboard tracking.</strong>
 </p>
 
 ## Overview
@@ -18,8 +18,8 @@ TaskForge intentionally implements "Chaos Engineering" features, allowing you to
 
 - **Distributed Execution**: Horizontally scalable worker pool leveraging RabbitMQ for message distribution.
 - **Resilience & Chaos Engineering**: Built-in "Kill Worker" fault-injection to demonstrate recovery from ungraceful shutdowns. Stale locks are automatically broken and re-queued by the Scheduler.
-- **Execution Guarantees**: Guarantees **At-Least-Once** execution with **Strict FIFO** chronological ordering. Uses database-level locks, transactional integrity, and exponential backoff for failing jobs to provide robust internal idempotency guards.
-- **Real-Time Observability Dashboard**: A Next.js frontend using `SWR` for high-frequency short-polling, providing a responsive Kanban view of job states.
+- **Execution Guarantees**: Guarantees **At-Least-Once** execution with **best-effort FIFO** chronological ordering. Uses database-level locks, transactional integrity, and exponential backoff for failing jobs to provide robust internal idempotency guards.
+- **Real-Time Dashboard Tracking**: A Next.js frontend using `SWR` for high-frequency short-polling, providing a responsive Kanban view of job states.
 - **Global Event Console**: Centralized polling-based logs capturing every major event across the API, Scheduler, and Worker nodes.
 - **Live System Health**: Continuous pulse-checks on PostgreSQL, RabbitMQ, and Worker nodes with dynamic UI indicators.
 
@@ -60,10 +60,20 @@ In a separate terminal, install dependencies and start the Next.js observer dash
 
 ```bash
 npm install
-npm run dev --workspace=frontend
+NEXT_PUBLIC_API_URL=http://localhost:3000 npm run dev --workspace=frontend
 ```
 
 The dashboard will automatically start on [http://localhost:3001](http://localhost:3001) (as port 3000 is utilized by the API).
+
+## Production Deployment
+
+### Backend Services
+To deploy TaskForge without local development overhead, use `docker-compose.prod.yml`.
+Note: If your `.env` contains `localhost` (e.g., `DATABASE_URL=postgres://...localhost:5432...`), the containers will attempt to connect to their own internal network, not your host machine! You must either use a reachable external database URL, or configure `host.docker.internal` (or `--network host`) to point to your host services.
+
+### Frontend Dashboard
+For production builds or static generation, the frontend strictly requires the `NEXT_PUBLIC_API_URL` environment variable to be set *at build time*. 
+If it is missing, `npm run build` will fail fast. Be sure to configure it in your CI/CD pipelines (e.g., GitHub Actions) or Vercel/Netlify environment settings.
 
 ## Try the "Chaos Demo"
 

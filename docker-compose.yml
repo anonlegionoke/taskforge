@@ -40,6 +40,7 @@ services:
     environment:
       - DATABASE_URL=postgres://${DATABASE_USER:-taskforge}:${DATABASE_PASSWORD:-password}@postgres:5432/${DATABASE_NAME:-taskforge}
       - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672
+      - RABBITMQ_QUEUE=taskforge.queue.jobs
     depends_on:
       postgres:
         condition: service_healthy
@@ -57,6 +58,7 @@ services:
     environment:
       - DATABASE_URL=postgres://${DATABASE_USER:-taskforge}:${DATABASE_PASSWORD:-password}@postgres:5432/${DATABASE_NAME:-taskforge}
       - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672
+      - RABBITMQ_QUEUE=taskforge.queue.jobs
     depends_on:
       postgres:
         condition: service_healthy
@@ -69,10 +71,12 @@ services:
     build: 
       context: .
       target: builder
+    restart: always
     command: npm run dev:scheduler
     environment:
       - DATABASE_URL=postgres://${DATABASE_USER:-taskforge}:${DATABASE_PASSWORD:-password}@postgres:5432/${DATABASE_NAME:-taskforge}
       - RABBITMQ_URL=amqp://${RABBITMQ_USER:-guest}:${RABBITMQ_PASSWORD:-guest}@rabbitmq:5672
+      - RABBITMQ_QUEUE=taskforge.queue.jobs
     depends_on:
       postgres:
         condition: service_healthy

@@ -3,8 +3,13 @@ import { pool } from "./db";
 export class SystemLogger {
   constructor(private source: string) {}
 
-  private async writeLog(level: string, args: any[]) {
-    const message = args.map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ');
+  private async writeLog(level: string, args: unknown[]) {
+    const message = args.map(a => {
+      if (a instanceof Error) {
+        return a.stack || a.message;
+      }
+      return typeof a === 'object' ? JSON.stringify(a) : String(a);
+    }).join(' ');
     
     // Output to stdout
     if (level === 'INFO') console.log(`[${this.source}]`, message);
@@ -22,7 +27,7 @@ export class SystemLogger {
     }
   }
 
-  info(...args: any[]) { this.writeLog('INFO', args); }
-  warn(...args: any[]) { this.writeLog('WARN', args); }
-  error(...args: any[]) { this.writeLog('ERROR', args); }
+  info(...args: unknown[]) { return this.writeLog('INFO', args); }
+  warn(...args: unknown[]) { return this.writeLog('WARN', args); }
+  error(...args: unknown[]) { return this.writeLog('ERROR', args); }
 }

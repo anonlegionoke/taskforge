@@ -114,7 +114,9 @@ systemRouter.get("/health", async (req, res) => {
     health.rabbitmq = "UP";
     
     try {
-      const q = await channel.checkQueue("taskforge.queue.jobs");
+      const queueName = process.env.RABBITMQ_QUEUE;
+      if (!queueName) throw new Error("Missing queue config");
+      const q = await channel.checkQueue(queueName);
       health.worker = q.consumerCount > 0 ? "UP" : "DOWN";
     } catch (e) {
       health.worker = "DOWN";

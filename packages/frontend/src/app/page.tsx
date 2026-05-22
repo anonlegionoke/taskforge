@@ -73,6 +73,9 @@ interface JobColumn {
   border: string;
 }
 
+if (!process.env.NEXT_PUBLIC_API_URL) {
+  throw new Error("FATAL: NEXT_PUBLIC_API_URL environment variable is missing.");
+}
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
 
 const fetcher = async (url: string) => {
@@ -278,7 +281,7 @@ export default function Dashboard() {
       await fetch(`${API_URL}/jobs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "chaos_crash_worker", payload: { simulate: "ungraceful_kill" }, max_attempts: 1 }),
+        body: JSON.stringify({ type: "chaos_crash_worker", payload: { simulate: "ungraceful_kill" } }),
       });
       mutateStats();
       mutateJobs();

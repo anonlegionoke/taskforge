@@ -3,7 +3,10 @@ import { initRabbitMQ, pool, logJobEvent, SystemLogger } from "@taskforge/shared
 import os from "node:os";
 import type { ChannelModel } from "amqplib";
 
-const MAIN_QUEUE = process.env.RABBITMQ_QUEUE!;
+if (!process.env.RABBITMQ_QUEUE) {
+  throw new Error("FATAL: RABBITMQ_QUEUE environment variable is missing.");
+}
+const MAIN_QUEUE = process.env.RABBITMQ_QUEUE;
 const POLL_INTERVAL_MS = 5000;
 const LOCK_TIMEOUT = "15 minutes";
 const SCHEDULER_ID =
@@ -91,6 +94,12 @@ export const sweepJobs = async () => {
 
     await resetStaleLeases();
 
+    // ARCHITECTURE NOTE: DB-before-RabbitMQ Gap
+    // We intentionally update the DB status to PROCESSING *before* pushing to RabbitMQ.
+    // If RabbitMQ crashes mid-publish or rejects the confirm, the job will be temporarily
+    // orphaned in PROCESSING state. However, our stale lock recovery will safely pick it
+    // up again after 15 minutes and requeue it. This provides strong at-least-once guarantees
+    // without requiring complex two-phase commits.
     const { rows } = await pool.query<{ id: string; run_at: Date; created_at: Date }>(
       `
             UPDATE jobs
