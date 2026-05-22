@@ -23,6 +23,7 @@ export class SystemLogger {
         [this.source, level, message]
       );
     } catch (e) {
+      console.error(`SystemLogger failed to write to DB:`, e);
       // Ignore DB write errors for logs
     }
   }

@@ -77,14 +77,14 @@ const resetStaleLeases = async () => {
     const resetCount = rows.filter((row) => row.status === "PENDING").length;
     const failedCount = rows.filter((row) => row.status === "FAILED").length;
 
-    logger.warn(
+    await logger.warn(
       `Recovered ${staleQueuedJobs.rows.length} stale queued job(s), ${resetCount} stale running job(s); marked ${failedCount} job(s) FAILED.`,
     );
   }
 };
 
 export const sweepJobs = async () => {
-  logger.info("Taskforge Scheduler sweeping...");
+  await logger.info("Taskforge Scheduler sweeping...");
 
   if (isShuttingDown) return;
 
@@ -121,7 +121,7 @@ export const sweepJobs = async () => {
     );
 
     if (rows.length > 0) {
-      logger.info(`Scheduler swept ${rows.length} ripe jobs. Pushing to RabbitMQ...`);
+      await logger.info(`Scheduler swept ${rows.length} ripe jobs. Pushing to RabbitMQ...`);
 
       // For strict FIFO scheduling
       rows.sort(
