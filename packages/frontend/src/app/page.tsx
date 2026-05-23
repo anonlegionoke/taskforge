@@ -358,7 +358,7 @@ export default function Dashboard() {
                               <span className="text-sm font-medium text-slate-200">{item.label}</span>
                             </div>
                             <div className={`px-2 py-0.5 text-[10px] font-bold rounded ${isUp(item.status) ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'}`}>
-                              {item.status || 'DOWN'}
+                              {healthError ? 'DOWN' : (item.status || 'DOWN')}
                             </div>
                           </div>
                         ))}
