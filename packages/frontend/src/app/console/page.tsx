@@ -213,7 +213,7 @@ function JobDetailsModal({ job, onClose }: { job: JobRecord; onClose: () => void
                             {log.event_type}
                           </span>
                           <span className="text-xs text-slate-500 font-mono">
-                            {new Date(log.created_at).toLocaleTimeString()}
+                            {new Date(log.created_at).toLocaleString()}
                           </span>
                         </div>
                         <span className="text-[10px] text-slate-600 font-mono truncate max-w-[150px]" title={log.worker_id}>
@@ -363,7 +363,7 @@ export default function Dashboard() {
                           </div>
                         ))}
                         <div className="text-center text-[10px] text-slate-500 mt-2 pt-2 border-t border-slate-800">
-                          {health?.timestamp ? `Updated: ${new Date(health.timestamp).toLocaleTimeString()}` : "API Offline"}
+                          {health?.timestamp ? `Updated: ${new Date(health.timestamp).toLocaleString()}` : "API Offline"}
                         </div>
                       </div>
                     )}
@@ -434,7 +434,7 @@ export default function Dashboard() {
                 logs.map((log) => (
                   <div key={log.id} className="flex flex-col sm:flex-row gap-1 sm:gap-3 hover:bg-white/5 px-2 py-0.5 rounded">
                     <span className="text-slate-500 shrink-0">
-                      {new Date(log.created_at).toLocaleTimeString([], { hour12: false, fractionalSecondDigits: 3 })}
+                      {new Date(log.created_at).toLocaleString()}
                     </span>
                     <span className={`shrink-0 w-12 font-bold ${log.level === 'ERROR' ? 'text-rose-400' :
                         log.level === 'WARN' ? 'text-amber-400' :
@@ -522,7 +522,7 @@ export default function Dashboard() {
                       </h3>
                       <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
                         <Clock className="w-3 h-3" />
-                        {new Date(job.created_at).toLocaleTimeString()}
+                        {new Date(job.created_at).toLocaleString()}
                       </div>
                     </div>
                   ))}
