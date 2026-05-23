@@ -247,11 +247,11 @@ export default function Dashboard() {
   const jobList = jobs ?? [];
   const activeJob = selectedJobId ? jobList.find(j => j.id === selectedJobId) : null;
 
-  const { data: health } = useSWR<SystemHealth>(`${API_URL}/system/health`, fetcher, { refreshInterval: 2000 });
+  const { data: health, error: healthError } = useSWR<SystemHealth>(`${API_URL}/system/health`, fetcher, { refreshInterval: 2000 });
   const { data: logs } = useSWR<SystemLog[]>(showConsole ? `${API_URL}/system/logs` : null, fetcher, { refreshInterval: 1000 });
 
-  const isHealthy = health ? (health.api === "UP" && health.db === "UP" && health.rabbitmq === "UP" && health.worker === "UP" && health.scheduler === "UP") : true;
-  const isUp = (status?: string) => status === "UP";
+  const isHealthy = healthError ? false : health ? (health.api === "UP" && health.db === "UP" && health.rabbitmq === "UP" && health.worker === "UP" && health.scheduler === "UP") : true;
+  const isUp = (status?: string) => !healthError && status === "UP";
 
   const spawnJob = async (count = 1) => {
     setIsSpawning(true);
@@ -281,7 +281,7 @@ export default function Dashboard() {
       await fetch(`${API_URL}/jobs`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "chaos_crash_worker", payload: { simulate: "ungraceful_kill" } }),
+        body: JSON.stringify({ type: "chaos_crash_worker", payload: { simulate: "ungraceful_kill" }, max_attempts: 1 }),
       });
       mutateStats();
       mutateJobs();
@@ -341,16 +341,16 @@ export default function Dashboard() {
                     )}
                   </div>
                   <div className="p-4 space-y-3">
-                    {!health ? (
+                    {!health && !healthError ? (
                       <div className="text-slate-500 text-xs text-center animate-pulse">Running diagnostics...</div>
                     ) : (
                       <div className="space-y-2">
                         {[
-                          { label: 'API Server', icon: Server, status: health.api },
-                          { label: 'PostgreSQL DB', icon: Database, status: health.db },
-                          { label: 'RabbitMQ Cluster', icon: ServerCog, status: health.rabbitmq },
-                          { label: 'Worker Node', icon: Cpu, status: health.worker },
-                          { label: 'Scheduler', icon: Timeline, status: health.scheduler }
+                          { label: 'API Server', icon: Server, status: health?.api },
+                          { label: 'PostgreSQL DB', icon: Database, status: health?.db },
+                          { label: 'RabbitMQ Cluster', icon: ServerCog, status: health?.rabbitmq },
+                          { label: 'Worker Node', icon: Cpu, status: health?.worker },
+                          { label: 'Scheduler', icon: Timeline, status: health?.scheduler }
                         ].map(item => (
                           <div key={item.label} className="flex items-center justify-between p-3 bg-[#181b21] rounded-lg border border-slate-800/60 transition-all">
                             <div className="flex items-center gap-2">
@@ -363,7 +363,7 @@ export default function Dashboard() {
                           </div>
                         ))}
                         <div className="text-center text-[10px] text-slate-500 mt-2 pt-2 border-t border-slate-800">
-                          Updated: {new Date(health.timestamp).toLocaleTimeString()}
+                          {health?.timestamp ? `Updated: ${new Date(health.timestamp).toLocaleTimeString()}` : "API Offline"}
                         </div>
                       </div>
                     )}
