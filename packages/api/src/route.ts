@@ -1,23 +1,79 @@
 import { Router } from "express";
 import { pool, logJobEvent, SystemLogger } from "@taskforge/shared";
+import type {
+  CreateJobRequest,
+  CreateJobResponse,
+  JobLogRecord,
+  JobRecord,
+  JobStats,
+  JobStatus,
+  SystemHealth,
+  SystemLogRecord,
+} from "@taskforge/shared";
 
 const logger = new SystemLogger("API_ROUTE");
 
 export const jobRouter = Router();
 export const systemRouter = Router();
 
+type ApiTimestamp = Date | string;
+
+type JobRow = Omit<
+  JobRecord,
+  "run_at" | "locked_at" | "completed_at" | "failed_at" | "created_at" | "updated_at"
+> & {
+  run_at: ApiTimestamp;
+  locked_at: ApiTimestamp | null;
+  completed_at: ApiTimestamp | null;
+  failed_at: ApiTimestamp | null;
+  created_at: ApiTimestamp;
+  updated_at: ApiTimestamp;
+};
+
+type JobLogRow = Omit<JobLogRecord, "created_at"> & { created_at: ApiTimestamp };
+type SystemLogRow = Omit<SystemLogRecord, "created_at"> & { created_at: ApiTimestamp };
+
+const toIso = (value: ApiTimestamp | null): string | null => {
+  if (value === null) return null;
+  return value instanceof Date ? value.toISOString() : value;
+};
+
+const toRequiredIso = (value: ApiTimestamp): string => {
+  return value instanceof Date ? value.toISOString() : value;
+};
+
+const serializeJob = (job: JobRow): JobRecord => ({
+  ...job,
+  run_at: toRequiredIso(job.run_at),
+  locked_at: toIso(job.locked_at),
+  completed_at: toIso(job.completed_at),
+  failed_at: toIso(job.failed_at),
+  created_at: toRequiredIso(job.created_at),
+  updated_at: toRequiredIso(job.updated_at),
+});
+
+const serializeJobLog = (log: JobLogRow): JobLogRecord => ({
+  ...log,
+  created_at: toRequiredIso(log.created_at),
+});
+
+const serializeSystemLog = (log: SystemLogRow): SystemLogRecord => ({
+  ...log,
+  created_at: toRequiredIso(log.created_at),
+});
+
 // GET "/jobs/stats"
 jobRouter.get("/stats", async (req, res) => {
   try {
-    const { rows } = await pool.query(`
+    const { rows } = await pool.query<{ status: JobStatus; count: number }>(`
       SELECT status, COUNT(*)::int as count
       FROM jobs
       GROUP BY status
     `);
 
-    const stats = { PENDING: 0, PROCESSING: 0, RUNNING: 0, COMPLETED: 0, FAILED: 0 };
+    const stats: JobStats = { PENDING: 0, PROCESSING: 0, RUNNING: 0, COMPLETED: 0, FAILED: 0 };
     rows.forEach((row) => {
-      stats[row.status as keyof typeof stats] = row.count;
+      stats[row.status] = row.count;
     });
 
     return res.status(200).json(stats);
@@ -32,7 +88,7 @@ jobRouter.get("/:id/logs", async (req, res) => {
   const { id } = req.params;
 
   try {
-    const { rows } = await pool.query(
+    const { rows } = await pool.query<JobLogRow>(
       `
       SELECT event_type, error_message, worker_id, created_at 
       FROM job_logs 
@@ -42,7 +98,7 @@ jobRouter.get("/:id/logs", async (req, res) => {
       [id],
     );
 
-    return res.status(200).json(rows);
+    return res.status(200).json(rows.map(serializeJobLog));
   } catch (error) {
     logger.error(`Error fetching logs for job ${id}:`, error);
     return res.status(500).json({ error: "Internal Server Error" });
@@ -52,13 +108,13 @@ jobRouter.get("/:id/logs", async (req, res) => {
 // GET "/jobs"
 jobRouter.get("/", async (req, res) => {
   try {
-    const { rows } = await pool.query(`
+    const { rows } = await pool.query<JobRow>(`
       SELECT *
       FROM jobs
       ORDER BY updated_at DESC, created_at DESC
       LIMIT 100
     `);
-    return res.status(200).json(rows);
+    return res.status(200).json(rows.map(serializeJob));
   } catch (error) {
     logger.error("Error fetching jobs:", error);
     return res.status(500).json({ error: "Internal Server Error" });
@@ -68,10 +124,10 @@ jobRouter.get("/", async (req, res) => {
 // GET "/system/logs"
 systemRouter.get("/logs", async (req, res) => {
   try {
-    const { rows } = await pool.query(
+    const { rows } = await pool.query<SystemLogRow>(
       `SELECT * FROM system_logs ORDER BY created_at DESC LIMIT 100`
     );
-    return res.status(200).json(rows);
+    return res.status(200).json(rows.map(serializeSystemLog));
   } catch (error) {
     logger.error("Error fetching system logs:", error);
     return res.status(500).json({ error: "Internal Server Error" });
@@ -80,7 +136,7 @@ systemRouter.get("/logs", async (req, res) => {
 
 // GET "/system/health"
 systemRouter.get("/health", async (req, res) => {
-  const health = {
+  const health: SystemHealth = {
     api: "UP",
     db: "DOWN",
     rabbitmq: "DOWN",
@@ -131,7 +187,7 @@ systemRouter.get("/health", async (req, res) => {
 
 // POST "/jobs"
 jobRouter.post("/", async (req, res) => {
-  const { type, payload, runAt, max_attempts } = req.body;
+  const { type, payload, runAt, max_attempts } = req.body as Partial<CreateJobRequest>;
 
   if (typeof type !== "string" || type.trim().length === 0 || type.length > 255) {
     return res.status(400).json({ error: 'Job "type" must be a non-empty string (max 255 chars).' });
@@ -153,7 +209,7 @@ jobRouter.post("/", async (req, res) => {
 
   try {
     const maxAttemptsVal = max_attempts ?? 3;
-    const jobResult = await pool.query<{ id: string; run_at: string }>(
+    const jobResult = await pool.query<{ id: string; run_at: ApiTimestamp }>(
       `INSERT INTO jobs (type, payload, status, run_at, max_attempts)
         VALUES($1, $2, 'PENDING', COALESCE($3::timestamptz, NOW()), $4)
         RETURNING id, run_at   
@@ -165,11 +221,13 @@ jobRouter.post("/", async (req, res) => {
     await logJobEvent(job.id, "API", "SCHEDULED");
     logger.info("SUCCESS: Job scheduled: ", job.id);
 
-    return res.status(202).json({
+    const response: CreateJobResponse = {
       message: "Job scheduled for processing",
       jobId: job.id,
-      runAt: job.run_at,
-    });
+      runAt: toRequiredIso(job.run_at),
+    };
+
+    return res.status(202).json(response);
   } catch (error) {
     logger.error("Error ingesting job:", error);
     return res.status(500).json({ error: "Failed to queue job" });

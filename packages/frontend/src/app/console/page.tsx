@@ -21,48 +21,14 @@ import {
   Timeline,
   type LucideIcon,
 } from "lucide-react";
-
-type JobStatus = "PENDING" | "PROCESSING" | "RUNNING" | "COMPLETED" | "FAILED";
-
-type JobStats = Record<JobStatus, number>;
-
-interface SystemLog {
-  id: string;
-  source: string;
-  level: string;
-  message: string;
-  created_at: string;
-}
-
-interface SystemHealth {
-  api: string;
-  db: string;
-  rabbitmq: string;
-  worker: string;
-  scheduler: string;
-  timestamp: string;
-}
-
-interface JobRecord {
-  id: string;
-  type: string;
-  status: JobStatus;
-  attempts: number;
-  max_attempts: number;
-  payload: Record<string, unknown>;
-  locked_by: string | null;
-  locked_at: string | null;
-  run_at: string;
-  created_at: string;
-  updated_at: string;
-}
-
-interface JobLog {
-  event_type: string;
-  error_message: string | null;
-  worker_id: string;
-  created_at: string;
-}
+import type {
+  JobLogRecord,
+  JobRecord,
+  JobStats,
+  JobStatus,
+  SystemHealth,
+  SystemLogRecord,
+} from "@taskforge/shared";
 
 interface JobColumn {
   id: JobStatus;
@@ -100,7 +66,7 @@ const COLUMNS: JobColumn[] = [
 
 function JobDetailsModal({ job, onClose }: { job: JobRecord; onClose: () => void }) {
   const isLive = ["PENDING", "PROCESSING", "RUNNING"].includes(job.status);
-  const { data: logs } = useSWR<JobLog[]>(
+  const { data: logs } = useSWR<JobLogRecord[]>(
     `${API_URL}/jobs/${job.id}/logs`,
     fetcher,
     { refreshInterval: isLive ? 1000 : 0 }
@@ -248,7 +214,7 @@ export default function Dashboard() {
   const activeJob = selectedJobId ? jobList.find(j => j.id === selectedJobId) : null;
 
   const { data: health, error: healthError } = useSWR<SystemHealth>(`${API_URL}/system/health`, fetcher, { refreshInterval: 2000 });
-  const { data: logs } = useSWR<SystemLog[]>(showConsole ? `${API_URL}/system/logs` : null, fetcher, { refreshInterval: 1000 });
+  const { data: logs } = useSWR<SystemLogRecord[]>(showConsole ? `${API_URL}/system/logs` : null, fetcher, { refreshInterval: 1000 });
 
   const isHealthy = healthError ? false : health ? (health.api === "UP" && health.db === "UP" && health.rabbitmq === "UP" && health.worker === "UP" && health.scheduler === "UP") : true;
   const isUp = (status?: string) => !healthError && status === "UP";
