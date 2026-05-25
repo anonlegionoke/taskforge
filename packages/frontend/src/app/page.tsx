@@ -54,9 +54,8 @@ export default function LandingPage() {
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4 w-full sm:w-auto">
           <Link
             href="/console"
-            className="group relative inline-flex items-center justify-center gap-2 px-8 py-3.5 w-full sm:w-auto text-sm font-semibold text-white bg-indigo-500 rounded-xl overflow-hidden transition-all hover:scale-[1.02] hover:shadow-[0_0_40px_rgba(99,102,241,0.4)] active:scale-95"
+            className="group relative inline-flex items-center justify-center gap-2 px-8 py-3.5 w-full sm:w-auto text-sm font-semibold text-white bg-[#1F5FA9] hover:bg-[#1b5394] rounded-xl transition-all hover:scale-[1.02] hover:shadow-[0_0_40px_rgba(31,95,169,0.4)] active:scale-95"
           >
-            <div className="absolute inset-0 bg-gradient-to-r from-indigo-600 to-indigo-400 transition-transform group-hover:scale-105"></div>
             <Terminal className="w-5 h-5 relative z-10" />
             <span className="relative z-10">Launch Console</span>
             <ArrowRight className="w-4 h-4 relative z-10 transition-transform group-hover:translate-x-1" />
@@ -100,9 +99,9 @@ export default function LandingPage() {
                 icon: Flame,
                 title: "Kill Worker",
                 desc: "Inject a fatal crash into the Node.js worker process to simulate an ungraceful shutdown.",
-                color: "text-orange-400",
-                bg: "bg-orange-500/10",
-                border: "border-orange-500/20"
+                color: "text-red-400",
+                bg: "bg-red-500/10",
+                border: "border-red-500/20"
               },
               {
                 step: "3",
@@ -157,9 +156,9 @@ export default function LandingPage() {
               icon: ShieldAlert,
               title: "Resilience & Chaos Engineering",
               desc: "Built-in 'Kill Worker' fault-injection to demonstrate automatic recovery from ungraceful shutdowns.",
-              color: "text-orange-400",
-              bg: "bg-orange-500/10",
-              border: "border-orange-500/20"
+              color: "text-red-400",
+              bg: "bg-red-500/10",
+              border: "border-red-500/20"
             },
             {
               icon: Activity,

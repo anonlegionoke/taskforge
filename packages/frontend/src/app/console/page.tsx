@@ -376,9 +376,9 @@ export default function Dashboard() {
               <button
                 onClick={crashWorker}
                 disabled={isSpawning}
-                className="w-full md:w-auto justify-center group relative flex items-center gap-2 px-3 py-2.5 bg-transparent border border-orange-500 hover:bg-orange-500/10 disabled:opacity-50 text-orange-400 rounded-lg text-xs font-semibold transition-all shadow-[0_0_15px_rgba(249,115,22,0.1)] hover:shadow-[0_0_20px_rgba(249,115,22,0.25)] overflow-hidden"
+                className="w-full md:w-auto justify-center group relative flex items-center gap-2 px-3 py-2.5 bg-transparent border border-red-500 hover:bg-red-500/10 disabled:opacity-50 text-red-400 rounded-lg text-xs font-semibold transition-all shadow-[0_0_15px_rgba(239,68,68,0.1)] hover:shadow-[0_0_20px_rgba(239,68,68,0.25)] overflow-hidden"
               >
-                <div className="absolute inset-0 bg-orange-500/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
+                <div className="absolute inset-0 bg-red-500/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
                 <ShieldAlert className="w-3.5 h-3.5 relative z-10" />
                 <span className="relative z-10 hidden sm:inline">Kill Worker</span>
                 <span className="relative z-10 sm:hidden">Kill</span>
@@ -386,9 +386,9 @@ export default function Dashboard() {
               <button
                 onClick={() => spawnJob(1)}
                 disabled={isSpawning}
-                className="w-full md:w-auto justify-center group relative flex items-center gap-2 px-3 py-2.5 bg-transparent border border-indigo-500 hover:bg-indigo-500/10 disabled:opacity-50 text-indigo-400 rounded-lg text-xs font-semibold transition-all shadow-[0_0_15px_rgba(79,70,229,0.1)] hover:shadow-[0_0_20px_rgba(79,70,229,0.25)] overflow-hidden"
+                className="w-full md:w-auto justify-center group relative flex items-center gap-2 px-3 py-2.5 bg-transparent border border-slate-700 hover:bg-slate-700/10 disabled:opacity-50 text-slate-400 hover:text-slate-300 rounded-lg text-xs font-semibold transition-all shadow-[0_0_10px_rgba(100,116,139,0.05)] hover:shadow-[0_0_15px_rgba(100,116,139,0.15)] overflow-hidden"
               >
-                <div className="absolute inset-0 bg-indigo-500/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
+                <div className="absolute inset-0 bg-slate-700/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
                 <Play className="w-3.5 h-3.5 relative z-10 fill-current" />
                 <span className="relative z-10 hidden sm:inline">Spawn 1</span>
                 <span className="relative z-10 sm:hidden">+1</span>
@@ -396,10 +396,10 @@ export default function Dashboard() {
               <button
                 onClick={() => spawnJob(50)}
                 disabled={isSpawning}
-                className="w-full md:w-auto justify-center group relative flex items-center gap-2 px-3 py-2.5 bg-transparent border border-rose-500 hover:bg-rose-500/10 disabled:opacity-50 text-rose-400 rounded-lg text-xs font-semibold transition-all shadow-[0_0_15px_rgba(225,29,72,0.1)] hover:shadow-[0_0_20px_rgba(225,29,72,0.25)] overflow-hidden"
+                className="w-full md:w-auto justify-center group relative flex items-center gap-2 px-3 py-2.5 bg-transparent border border-slate-700 hover:bg-slate-700/10 disabled:opacity-50 text-slate-400 hover:text-slate-300 rounded-lg text-xs font-semibold transition-all shadow-[0_0_10px_rgba(100,116,139,0.05)] hover:shadow-[0_0_15px_rgba(100,116,139,0.15)] overflow-hidden"
               >
-                <div className="absolute inset-0 bg-rose-500/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
-                <Flame className="w-3.5 h-3.5 relative z-10 animate-pulse fill-current" />
+                <div className="absolute inset-0 bg-slate-700/10 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
+                <Flame className="w-3.5 h-3.5 relative z-10 fill-current" />
                 <span className="relative z-10 hidden sm:inline">Chaos 50</span>
                 <span className="relative z-10 sm:hidden">+50</span>
               </button>
