@@ -1,26 +1,34 @@
 // DB Pool
 import { Pool } from "pg";
 
-const databaseUrl = process.env.DATABASE_URL;
+const activeDb = process.env.DB_SERVICE; // 'neon' | 'supabase'
+
+let databaseUrl = process.env.DATABASE_URL;
+
+if (activeDb === 'neon' && process.env.NEON_DATABASE_URL) {
+  databaseUrl = process.env.NEON_DATABASE_URL;
+} else if (activeDb === 'supabase' && process.env.SUPABASE_DATABASE_URL) {
+  databaseUrl = process.env.SUPABASE_DATABASE_URL;
+}
 
 if (!databaseUrl) {
-    throw new Error('FATAL: DATABASE_URL environment variable is missing.');
+  throw new Error('FATAL: A valid database URL could not be determined. Check DB_SERVICE, NEON_DATABASE_URL, SUPABASE_DATABASE_URL, or DATABASE_URL.');
 }
 
 export const pool = new Pool({
-    connectionString: databaseUrl,
-    max: 20,
-    idleTimeoutMillis: 30000,
-    connectionTimeoutMillis: 2000
+  connectionString: databaseUrl,
+  max: 20,
+  idleTimeoutMillis: 30000,
+  connectionTimeoutMillis: 2000
 });
 
 
 pool.on('error', (err, client) => {
-    console.error(`Unexpected error on idle database client ${client}`, err);
+  console.error(`Unexpected error on idle database client ${client}`, err);
 });
 
 export const query = (text: string, params?: unknown[]) => {
-    return pool.query(text, params);
+  return pool.query(text, params);
 };
 
 export const logJobEvent = async (
