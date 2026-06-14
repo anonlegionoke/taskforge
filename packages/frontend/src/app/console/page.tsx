@@ -1,7 +1,7 @@
 "use client";
 
 import useSWR from "swr";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Image from "next/image";
 import {
   Play,
@@ -91,7 +91,7 @@ function JobDetailsModal({ job, onClose }: { job: JobRecord; onClose: () => void
   }, [job.status, job.run_at]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-[#14171c] border border-slate-800 rounded-xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
 
         <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-[#181b21]">
@@ -213,6 +213,20 @@ export default function Dashboard() {
   const jobList = jobs ?? [];
   const activeJob = selectedJobId ? jobList.find(j => j.id === selectedJobId) : null;
 
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowHealth(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
   const { data: health, error: healthError } = useSWR<SystemHealth>(`${API_URL}/system/health`, fetcher, { refreshInterval: 2000 });
   const { data: logs } = useSWR<SystemLogRecord[]>(showConsole ? `${API_URL}/system/logs` : null, fetcher, { refreshInterval: 1000 });
 
@@ -274,7 +288,7 @@ export default function Dashboard() {
           </div>
 
           <div className="flex flex-col md:flex-row justify-start md:justify-end gap-3 md:gap-4 w-full md:w-auto relative">
-            <div className="grid grid-cols-2 gap-3 md:flex md:gap-4 w-full md:w-auto relative">
+            <div ref={dropdownRef} className="grid grid-cols-2 gap-3 md:flex md:gap-4 w-full md:w-auto relative">
               <button
                 onClick={() => { setShowConsole(!showConsole); setShowHealth(false); }}
                 className={`w-full md:w-auto justify-center group relative flex items-center gap-2 px-4 py-2.5 border text-sm font-medium transition-all shadow-sm rounded-lg ${showConsole ? 'bg-slate-800 border-slate-600 text-white' : 'bg-[#181b21] hover:bg-slate-800 border-slate-700 text-slate-300'}`}
