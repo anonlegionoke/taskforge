@@ -20,6 +20,9 @@ services:
       - "3000:3000"
     environment:
       - DATABASE_URL=${DATABASE_URL}
+      - DB_SERVICE=${DB_SERVICE}
+      - NEON_DATABASE_URL=${NEON_DATABASE_URL}
+      - SUPABASE_DATABASE_URL=${SUPABASE_DATABASE_URL}
       - RABBITMQ_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
       - RABBITMQ_QUEUE=${RABBITMQ_QUEUE}
     depends_on:
@@ -34,6 +37,9 @@ services:
     command: node dist/worker/index.js
     environment:
       - DATABASE_URL=${DATABASE_URL}
+      - DB_SERVICE=${DB_SERVICE}
+      - NEON_DATABASE_URL=${NEON_DATABASE_URL}
+      - SUPABASE_DATABASE_URL=${SUPABASE_DATABASE_URL}
       - RABBITMQ_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
       - RABBITMQ_QUEUE=${RABBITMQ_QUEUE}
     depends_on:
@@ -48,6 +54,9 @@ services:
     command: node dist/worker/scheduler.js
     environment:
       - DATABASE_URL=${DATABASE_URL}
+      - DB_SERVICE=${DB_SERVICE}
+      - NEON_DATABASE_URL=${NEON_DATABASE_URL}
+      - SUPABASE_DATABASE_URL=${SUPABASE_DATABASE_URL}
       - RABBITMQ_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASSWORD}@rabbitmq:5672
       - RABBITMQ_QUEUE=${RABBITMQ_QUEUE}
     depends_on:
@@ -61,6 +70,9 @@ services:
     command: npm run db:migrate
     environment:
       - DATABASE_URL=${DATABASE_URL}
+      - DB_SERVICE=${DB_SERVICE}
+      - NEON_DATABASE_URL=${NEON_DATABASE_URL}
+      - SUPABASE_DATABASE_URL=${SUPABASE_DATABASE_URL}
 
 networks:
   default:
